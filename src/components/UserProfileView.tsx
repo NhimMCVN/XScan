@@ -19,7 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DepositHistoryDrawer } from "./DepositHistoryDrawer";
 
@@ -210,81 +210,6 @@ export function UserProfileView() {
                   </div>
                 </div>
 
-                {/* Streamer Stats */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div 
-                    className="bg-surface-container/30 p-4 rounded-[12px] border border-outline-variant/5 space-y-2 cursor-pointer hover:bg-surface-container/50 transition-colors group"
-                    onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'STREAMER_DONATIONS' }))}
-                  >
-                    <div className="flex items-center justify-between">
-                      <p className="text-[10px] text-outline uppercase font-bold tracking-widest">Tổng tiền Donate</p>
-                      <ArrowRight className="w-3 h-3 text-outline group-hover:text-primary transition-colors" />
-                    </div>
-                    <p className="text-2xl font-display font-bold text-primary tracking-tight">12,850,000 VND</p>
-                  </div>
-                  <div 
-                    className="bg-surface-container/30 p-4 rounded-[12px] border border-outline-variant/5 space-y-2 cursor-pointer hover:bg-surface-container/50 transition-colors group"
-                    onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'STREAMER_CHALLENGES' }))}
-                  >
-                    <div className="flex items-center justify-between">
-                      <p className="text-[10px] text-outline uppercase font-bold tracking-widest">Tổng số Challenge</p>
-                      <ArrowRight className="w-3 h-3 text-outline group-hover:text-primary transition-colors" />
-                    </div>
-                    <p className="text-2xl font-display font-bold text-primary tracking-tight">42</p>
-                  </div>
-                </div>
-
-                {/* Active Donations / Matches */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3 border-l-2 border-primary pl-3">
-                    <h3 className="text-[10px] font-bold text-foreground tracking-[0.2em] uppercase">DONATIONS ĐANG THAM GIA</h3>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 gap-4">
-                    {[
-                      {
-                        sessionId: "99482",
-                        team1: { name: "TEAM_VALOR", image: "https://picsum.photos/seed/t1/200/200", amount: "12,450 GEM", ratio: 65 },
-                        team2: { name: "TEAM_MYSTIC", image: "https://picsum.photos/seed/t2/200/200", amount: "6,700 GEM", ratio: 35 },
-                        format: "BO3"
-                      }
-                    ].map((match, i) => (
-                      <div key={i} className="bg-surface-container-low/40 border border-outline-variant/10 p-5 relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 p-2">
-                          <Badge className="bg-primary/20 text-primary border-none rounded-none text-[8px] font-bold tracking-widest">ĐANG THI ĐẤU</Badge>
-                        </div>
-                        <div className="flex items-center justify-between gap-4">
-                          <div className="flex flex-col items-center gap-2 flex-1">
-                            <div className="w-12 h-12 border border-primary/30 p-0.5">
-                              <img src={match.team1.image} alt={match.team1.name} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" referrerPolicy="no-referrer" />
-                            </div>
-                            <span className="text-[9px] font-bold uppercase truncate w-full text-center">{match.team1.name}</span>
-                          </div>
-                          <div className="flex flex-col items-center">
-                            <span className="text-lg font-bold italic text-primary">VS</span>
-                            <span className="text-[8px] font-mono text-outline">{match.format}</span>
-                          </div>
-                          <div className="flex flex-col items-center gap-2 flex-1">
-                            <div className="w-12 h-12 border border-outline-variant/30 p-0.5">
-                              <img src={match.team2.image} alt={match.team2.name} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" referrerPolicy="no-referrer" />
-                            </div>
-                            <span className="text-[9px] font-bold uppercase truncate w-full text-center">{match.team2.name}</span>
-                          </div>
-                        </div>
-                        <div className="mt-4 space-y-2">
-                          <div className="flex justify-between text-[8px] font-bold text-outline uppercase tracking-widest">
-                            <span>TIẾN ĐỘ ỦNG HỘ</span>
-                            <span>{match.team1.amount} / 20,000 GEM</span>
-                          </div>
-                          <div className="h-1 bg-surface-container-highest w-full relative">
-                            <div className="absolute left-0 top-0 bottom-0 bg-primary" style={{ width: '62%' }} />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
                 <div className="bg-surface-container/30 p-4 rounded-[12px] border border-outline-variant/5">
                   <p className="text-[10px] text-outline uppercase font-bold tracking-widest mb-2">Tiểu sử chiến thuật</p>
                   <p className="text-sm text-foreground/80 leading-relaxed italic">
@@ -292,6 +217,103 @@ export function UserProfileView() {
                   </p>
                 </div>
               </div>
+            </div>
+          </section>
+
+          {/* Management Section (New) */}
+          <section className="space-y-4">
+            <div className="flex items-center gap-3 border-l-4 border-primary pl-4">
+              <h2 className="text-xl font-bold tracking-tight uppercase">Quản lý</h2>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div 
+                className="bg-surface-container-low border border-outline-variant/10 p-6 rounded-[12px] cursor-pointer hover:border-primary/30 transition-all group"
+                onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'STREAMER_DONATIONS' }))}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-12 h-12 rounded-[12px] bg-primary/10 flex items-center justify-center text-primary">
+                    <DollarSign className="w-6 h-6" />
+                  </div>
+                  <ArrowRight className="w-5 h-5 text-outline group-hover:text-primary transition-colors" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-outline font-bold tracking-widest uppercase">Tổng tiền Donate</p>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-bold text-foreground tracking-tighter">12,850,000</span>
+                    <span className="text-sm font-bold text-primary">VND</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div 
+                className="bg-surface-container-low border border-outline-variant/10 p-6 rounded-[12px] cursor-pointer hover:border-primary/30 transition-all group"
+                onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'STREAMER_CHALLENGES' }))}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className="w-12 h-12 rounded-[12px] bg-primary/10 flex items-center justify-center text-primary">
+                    <Zap className="w-6 h-6" />
+                  </div>
+                  <ArrowRight className="w-5 h-5 text-outline group-hover:text-primary transition-colors" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-outline font-bold tracking-widest uppercase">Tổng số Challenge</p>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-bold text-foreground tracking-tighter">42</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Active Donations / Matches Section */}
+          <section className="space-y-4">
+            <div className="flex items-center gap-3 border-l-4 border-primary pl-4">
+              <h2 className="text-xl font-bold tracking-tight uppercase">Donations đang tham gia</h2>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[
+                {
+                  sessionId: "99482",
+                  team1: { name: "TEAM_VALOR", image: "https://picsum.photos/seed/t1/200/200", amount: "12,450 GEM", ratio: 65 },
+                  team2: { name: "TEAM_MYSTIC", image: "https://picsum.photos/seed/t2/200/200", amount: "6,700 GEM", ratio: 35 },
+                  format: "BO3"
+                }
+              ].map((match, i) => (
+                <div key={i} className="bg-surface-container-low border border-outline-variant/10 p-5 relative overflow-hidden group rounded-[12px]">
+                  <div className="absolute top-0 right-0 p-2">
+                    <Badge className="bg-primary/20 text-primary border-none rounded-none text-[8px] font-bold tracking-widest">ĐANG THI ĐẤU</Badge>
+                  </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex flex-col items-center gap-2 flex-1">
+                      <div className="w-12 h-12 border border-primary/30 p-0.5">
+                        <img src={match.team1.image} alt={match.team1.name} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" referrerPolicy="no-referrer" />
+                      </div>
+                      <span className="text-[9px] font-bold uppercase truncate w-full text-center">{match.team1.name}</span>
+                    </div>
+                    <div className="flex flex-col items-center">
+                      <span className="text-lg font-bold italic text-primary">VS</span>
+                      <span className="text-[8px] font-mono text-outline">{match.format}</span>
+                    </div>
+                    <div className="flex flex-col items-center gap-2 flex-1">
+                      <div className="w-12 h-12 border border-outline-variant/30 p-0.5">
+                        <img src={match.team2.image} alt={match.team2.name} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all" referrerPolicy="no-referrer" />
+                      </div>
+                      <span className="text-[9px] font-bold uppercase truncate w-full text-center">{match.team2.name}</span>
+                    </div>
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    <div className="flex justify-between text-[8px] font-bold text-outline uppercase tracking-widest">
+                      <span>TIẾN ĐỘ ỦNG HỘ</span>
+                      <span>{match.team1.amount} / 20,000 GEM</span>
+                    </div>
+                    <div className="h-1 bg-surface-container-highest w-full relative">
+                      <div className="absolute left-0 top-0 bottom-0 bg-primary" style={{ width: '62%' }} />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </section>
 
@@ -357,7 +379,7 @@ export function UserProfileView() {
                   setHistoryTab(v);
                   setCurrentPage(1);
                 }} 
-                className="w-full"
+                className="w-full flex-col"
               >
                 <TabsList className="bg-surface-container-highest/30 p-1 rounded-none border-b border-outline-variant/10 w-full flex justify-start h-12">
                   <TabsTrigger value="deposit" className="rounded-none data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:border-b-2 data-[state=active]:border-primary font-bold tracking-widest text-[10px] h-full px-6">
@@ -372,7 +394,7 @@ export function UserProfileView() {
                 </TabsList>
 
                 <div className="p-0">
-                  {historyTab === "deposit" && (
+                  <TabsContent value="deposit" className="m-0">
                     <div className="space-y-4">
                       <Table>
                         <TableHeader>
@@ -406,9 +428,9 @@ export function UserProfileView() {
                       </Table>
                       {renderPagination(DEPOSIT_HISTORY.length)}
                     </div>
-                  )}
+                  </TabsContent>
 
-                  {historyTab === "challenges" && (
+                  <TabsContent value="challenges" className="m-0">
                     <div className="space-y-4">
                       <Table>
                         <TableHeader>
@@ -440,9 +462,9 @@ export function UserProfileView() {
                       </Table>
                       {renderPagination(CREATED_CHALLENGES.length)}
                     </div>
-                  )}
+                  </TabsContent>
 
-                  {historyTab === "donations" && (
+                  <TabsContent value="donations" className="m-0">
                     <div className="space-y-4">
                       <Table>
                         <TableHeader>
@@ -466,7 +488,7 @@ export function UserProfileView() {
                       </Table>
                       {renderPagination(DONATION_HISTORY.length)}
                     </div>
-                  )}
+                  </TabsContent>
                 </div>
               </Tabs>
               <div className="p-4 border-t border-outline-variant/10 bg-surface-container-low/50">
