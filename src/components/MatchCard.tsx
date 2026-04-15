@@ -23,10 +23,10 @@ export function MatchCard({ sessionId, team1, team2, format, onSupport }: MatchC
       <div className="relative space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <span className="text-[9px] font-mono text-outline tracking-[0.2em]">SESSION_ID: {sessionId}</span>
+          <span className="text-[9px] font-mono text-outline tracking-[0.2em]">MÃ PHIÊN: {sessionId}</span>
           <div className="flex items-center gap-1.5">
             <div className="w-1 h-1 bg-destructive animate-pulse" />
-            <span className="text-[9px] font-bold text-destructive tracking-widest">LIVE</span>
+            <span className="text-[9px] font-bold text-destructive tracking-widest">TRỰC TIẾP</span>
           </div>
         </div>
 
@@ -66,7 +66,7 @@ export function MatchCard({ sessionId, team1, team2, format, onSupport }: MatchC
         <div className="space-y-4">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-[8px] font-bold text-outline tracking-widest uppercase">SUPPORT_INTEL</span>
+              <span className="text-[8px] font-bold text-outline tracking-widest uppercase">THÔNG TIN ỦNG HỘ</span>
               <span className="text-[8px] font-mono text-foreground tracking-widest">
                 {team1.amount} vs {team2.amount}
               </span>
@@ -81,7 +81,7 @@ export function MatchCard({ sessionId, team1, team2, format, onSupport }: MatchC
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-[8px] font-bold text-primary tracking-widest uppercase">MATCH_GOAL</span>
+              <span className="text-[8px] font-bold text-primary tracking-widest uppercase">MỤC TIÊU TRẬN ĐẤU</span>
               <span className="text-[8px] font-mono text-foreground tracking-widest">
                 19,150 / 50,000 GEM
               </span>
@@ -101,7 +101,7 @@ export function MatchCard({ sessionId, team1, team2, format, onSupport }: MatchC
           variant="outline" 
           className="w-full border-outline-variant/30 hover:bg-surface-container-high hover:text-primary text-[10px] font-bold tracking-[0.2em] h-10 uppercase transition-all"
         >
-          SUPPORT SQUAD
+          ỦNG HỘ ĐỘI HÌNH
         </Button>
       </div>
     </div>

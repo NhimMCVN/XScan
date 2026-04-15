@@ -117,10 +117,10 @@ export function DepositHistoryDrawer({ isOpen, onClose }: DepositHistoryDrawerPr
             <div className="flex items-center justify-between">
               <div className="space-y-1">
                 <DrawerTitle className="text-2xl font-bold tracking-tight uppercase text-foreground">
-                  DEPOSIT ARCHIVE
+                  KHO LƯU TRỮ NẠP TIỀN
                 </DrawerTitle>
                 <DrawerDescription className="text-[10px] font-mono text-outline tracking-widest uppercase">
-                  PROTOCOL: FINANCIAL_RECORDS_V2.0 // TOTAL_ENTRIES: {DEPOSIT_HISTORY.length}
+                  GIAO THỨC: FINANCIAL_RECORDS_V2.0 // TỔNG SỐ MỤC: {DEPOSIT_HISTORY.length}
                 </DrawerDescription>
               </div>
               <DrawerClose asChild>
@@ -136,11 +136,11 @@ export function DepositHistoryDrawer({ isOpen, onClose }: DepositHistoryDrawerPr
               <Table>
                 <TableHeader className="bg-surface-container-highest/30">
                   <TableRow className="hover:bg-transparent border-outline-variant/10">
-                    <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">TIME</TableHead>
-                    <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">TRANSACTION ID</TableHead>
-                    <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">AMOUNT</TableHead>
-                    <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">METHOD</TableHead>
-                    <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">STATUS</TableHead>
+                    <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">THỜI GIAN</TableHead>
+                    <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">MÃ GIAO DỊCH</TableHead>
+                    <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">SỐ TIỀN</TableHead>
+                    <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">PHƯƠNG THỨC</TableHead>
+                    <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">TRẠNG THÁI</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -161,7 +161,7 @@ export function DepositHistoryDrawer({ isOpen, onClose }: DepositHistoryDrawerPr
                       <TableCell>
                         <div className="flex items-center gap-2 text-[10px] font-bold text-outline uppercase tracking-widest">
                           {record.method === 'wallet' ? <Wallet className="w-3 h-3" /> : <QrCode className="w-3 h-3" />}
-                          {record.method}
+                          {record.method === 'wallet' ? 'Ví' : 'Mã QR'}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -172,7 +172,7 @@ export function DepositHistoryDrawer({ isOpen, onClose }: DepositHistoryDrawerPr
                             record.status === 'failed' ? 'text-destructive' : 
                             'text-primary'
                           }>
-                            {record.status}
+                            {record.status === 'completed' ? 'Hoàn tất' : record.status === 'failed' ? 'Thất bại' : 'Đang xử lý'}
                           </span>
                         </div>
                       </TableCell>

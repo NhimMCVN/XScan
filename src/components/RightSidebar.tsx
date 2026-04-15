@@ -2,16 +2,16 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const STREAM_DATA = [
-  { user: "USER_ALPHA", time: "12:04:12", message: "JUST DROPPED 🔥 2.5K ON THE BATTLE!", avatar: "https://picsum.photos/seed/u1/40/40" },
-  { user: "GALAXY_RUN", time: "12:05:55", message: "THE CLUTCH IS REAL 🚀🚀🚀", avatar: "https://picsum.photos/seed/u2/40/40" },
-  { user: "DIAMOND_HANDS", time: "12:06:10", message: "COLLECTED 💎 XSCAN REWARDS", avatar: "https://picsum.photos/seed/u3/40/40" },
-  { user: "CYBER_PUNK", time: "12:07:01", message: "SYSTEM OVERRIDE DETECTED...", avatar: "https://picsum.photos/seed/u4/40/40" },
+  { user: "USER_ALPHA", time: "12:04:12", message: "VỪA CHI 🔥 2.5K CHO TRẬN ĐẤU!", avatar: "https://picsum.photos/seed/u1/40/40" },
+  { user: "GALAXY_RUN", time: "12:05:55", message: "PHA XỬ LÝ QUÁ ĐỈNH 🚀🚀🚀", avatar: "https://picsum.photos/seed/u2/40/40" },
+  { user: "DIAMOND_HANDS", time: "12:06:10", message: "ĐÃ NHẬN 💎 PHẦN THƯỞNG XSCAN", avatar: "https://picsum.photos/seed/u3/40/40" },
+  { user: "CYBER_PUNK", time: "12:07:01", message: "PHÁT HIỆN GHI ĐÈ HỆ THỐNG...", avatar: "https://picsum.photos/seed/u4/40/40" },
 ];
 
 const REPORTS = [
-  { tag: "PATCH_14.2", time: "2H AGO", title: "NEW MAP REVEALED FOR SEASONAL DEPLOYMENT" },
-  { tag: "TOURNAMENT", time: "5H AGO", title: "GRAND FINALS PRIZE POOL HITS 1.2M CREDITS" },
-  { tag: "META_ALERT", time: "8H AGO", title: "CRITICAL WEAPON ADJUSTMENTS DETECTED IN LAST HOTFIX" },
+  { tag: "BẢN_CẬP_NHẬT_14.2", time: "2 GIỜ TRƯỚC", title: "TIẾT LỘ BẢN ĐỒ MỚI CHO MÙA GIẢI TỚI" },
+  { tag: "GIẢI ĐẤU", time: "5 GIỜ TRƯỚC", title: "GIẢI THƯỞNG CHUNG KẾT ĐẠT 1.2 TRIỆU CREDITS" },
+  { tag: "CẢNH BÁO META", time: "8 GIỜ TRƯỚC", title: "PHÁT HIỆN ĐIỀU CHỈNH VŨ KHÍ QUAN TRỌNG TRONG BẢN CẬP NHẬT MỚI" },
 ];
 
 export function RightSidebar() {
@@ -20,7 +20,7 @@ export function RightSidebar() {
       <div className="p-4 flex-1 flex flex-col min-h-0">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-[10px] font-bold text-foreground tracking-[0.2em] flex items-center gap-2">
-            LIVE_DATA_STREAM
+            DÒNG DỮ LIỆU TRỰC TIẾP
             <span className="w-1.5 h-1.5 bg-primary" />
           </h3>
         </div>
@@ -51,7 +51,7 @@ export function RightSidebar() {
       <div className="p-4 bg-surface-container-high">
         <h3 className="text-[10px] font-bold text-outline tracking-[0.2em] mb-6 flex items-center gap-2">
           <div className="w-3 h-3 border border-outline flex items-center justify-center text-[8px] font-mono">I</div>
-          INTEL_REPORTS
+          BÁO CÁO TÌNH BÁO
         </h3>
 
         <div className="space-y-6">

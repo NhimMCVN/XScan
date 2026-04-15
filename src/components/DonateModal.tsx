@@ -83,25 +83,25 @@ export function DonateModal({ isOpen, onClose, subject }: DonateModalProps) {
 
               <div className="text-center space-y-2">
                 <h2 className="text-2xl font-bold tracking-[0.1em] uppercase text-foreground">
-                  {subject.type === 'streamer' ? subject.name : 'MATCH_SUPPORT'}
+                  {subject.type === 'streamer' ? subject.name : 'ỦNG HỘ TRẬN ĐẤU'}
                 </h2>
                 <p className="text-[10px] font-bold text-outline tracking-[0.3em] uppercase">
-                  {subject.type === 'streamer' ? 'SUPPORTING OPERATOR' : `${subject.team1?.name} VS ${subject.team2?.name}`}
+                  {subject.type === 'streamer' ? 'ĐANG ỦNG HỘ ĐẶC VỤ' : `${subject.team1?.name} VS ${subject.team2?.name}`}
                 </p>
               </div>
 
               <div className="w-full space-y-4 pt-8 border-t border-outline-variant/10">
                 <div className="flex justify-between items-center">
                   <span className="text-[10px] font-mono text-outline tracking-widest uppercase">
-                    {subject.type === 'streamer' ? 'CURRENT_MATCH_XP' : 'MATCH_DONATIONS'}
+                    {subject.type === 'streamer' ? 'KINH NGHIỆM TRẬN ĐẤU' : 'TỔNG ỦNG HỘ TRẬN ĐẤU'}
                   </span>
                   <span className="text-[10px] font-mono text-primary font-bold">
                     {subject.type === 'streamer' ? '+1,240' : subject.currentDonation || '$0.00'}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-mono text-outline tracking-widest uppercase">SQUAD_BONUS</span>
-                  <span className="text-[10px] font-mono text-primary font-bold">ACTIVE</span>
+                  <span className="text-[10px] font-mono text-outline tracking-widest uppercase">THƯỞNG ĐỘI HÌNH</span>
+                  <span className="text-[10px] font-mono text-primary font-bold">ĐANG HOẠT ĐỘNG</span>
                 </div>
               </div>
             </div>
@@ -116,8 +116,8 @@ export function DonateModal({ isOpen, onClose, subject }: DonateModalProps) {
               </button>
 
               <div className="space-y-1">
-                <h3 className="text-2xl font-bold tracking-tight uppercase text-foreground">SUPPORT TRANSACTION</h3>
-                <p className="text-[10px] font-mono text-outline tracking-widest uppercase">PROTOCOL: SECURE_DONATE_V4.2</p>
+                <h3 className="text-2xl font-bold tracking-tight uppercase text-foreground">GIAO DỊCH ỦNG HỘ</h3>
+                <p className="text-[10px] font-mono text-outline tracking-widest uppercase">GIAO THỨC: SECURE_DONATE_V4.2</p>
               </div>
 
               {/* Tabs */}
@@ -130,14 +130,14 @@ export function DonateModal({ isOpen, onClose, subject }: DonateModalProps) {
                   className={`flex-1 font-bold text-[10px] tracking-[0.2em] h-10 rounded-none transition-all ${activeTab === 'wallet' ? 'bg-surface-container-highest border border-primary/50 text-primary' : 'bg-transparent text-outline hover:text-primary'}`}
                 >
                   <Wallet className="w-4 h-4 mr-2" />
-                  WALLET
+                  VÍ TIỀN
                 </Button>
                 <Button 
                   onClick={() => setActiveTab('qrcode')}
                   className={`flex-1 font-bold text-[10px] tracking-[0.2em] h-10 rounded-none transition-all ${activeTab === 'qrcode' ? 'bg-surface-container-highest border border-primary/50 text-primary' : 'bg-transparent text-outline hover:text-primary'}`}
                 >
                   <QrCode className="w-4 h-4 mr-2" />
-                  QR CODE
+                  MÃ QR
                 </Button>
               </div>
 
@@ -170,15 +170,15 @@ export function DonateModal({ isOpen, onClose, subject }: DonateModalProps) {
                       </div>
                       <div className="text-center space-y-6">
                         <div className="space-y-2">
-                          <p className="text-primary font-bold tracking-widest uppercase">SCAN TO COMPLETE</p>
-                          <p className="text-[10px] text-outline tracking-widest uppercase">AMOUNT: {amount} CREDITS</p>
+                          <p className="text-primary font-bold tracking-widest uppercase">QUÉT ĐỂ HOÀN TẤT</p>
+                          <p className="text-[10px] text-outline tracking-widest uppercase">SỐ TIỀN: {amount} CREDITS</p>
                         </div>
                         <Button 
                           variant="ghost" 
                           onClick={() => setIsQrGenerated(false)}
                           className="text-[10px] font-bold text-outline hover:text-primary tracking-[0.2em] uppercase h-8 rounded-none border border-outline-variant/20 px-4"
                         >
-                          CHANGE AMOUNT
+                          THAY ĐỔI SỐ TIỀN
                         </Button>
                       </div>
                     </motion.div>
@@ -192,13 +192,13 @@ export function DonateModal({ isOpen, onClose, subject }: DonateModalProps) {
                     >
                       {/* Preset Amounts */}
                       <div className="space-y-4">
-                        <label className="text-[10px] font-bold text-outline tracking-[0.2em] uppercase">PRESET AMOUNTS</label>
+                        <label className="text-[10px] font-bold text-outline tracking-[0.2em] uppercase">MỨC ỦNG HỘ CÓ SẴN</label>
                         <div className="grid grid-cols-3 gap-4">
                           {['50K', '100K', '500K'].map((amt) => (
                             <div key={amt} className="relative group">
                               {amt === '100K' && (
                                 <div className="absolute -top-2 left-1/2 -translate-x-1/2 bg-primary px-2 py-0.5 z-10">
-                                  <span className="text-[8px] font-bold text-black uppercase">POPULAR</span>
+                                  <span className="text-[8px] font-bold text-black uppercase">PHỔ BIẾN</span>
                                 </div>
                               )}
                               <Button 
@@ -215,11 +215,11 @@ export function DonateModal({ isOpen, onClose, subject }: DonateModalProps) {
 
                       {/* Custom Credits */}
                       <div className="space-y-4">
-                        <label className="text-[10px] font-bold text-outline tracking-[0.2em] uppercase">CUSTOM CREDITS</label>
+                        <label className="text-[10px] font-bold text-outline tracking-[0.2em] uppercase">SỐ CREDITS TÙY CHỈNH</label>
                         <div className="relative">
                           <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-outline" />
                           <Input 
-                            placeholder="Enter amount..." 
+                            placeholder="Nhập số tiền..." 
                             className="h-14 pl-12 bg-surface-container-highest/50 border-none focus-visible:ring-1 focus-visible:ring-primary/50 text-lg font-display tracking-widest rounded-none"
                           />
                         </div>
@@ -227,10 +227,10 @@ export function DonateModal({ isOpen, onClose, subject }: DonateModalProps) {
 
                       {/* Encrypted Message */}
                       <div className="space-y-4">
-                        <label className="text-[10px] font-bold text-outline tracking-[0.2em] uppercase">ENCRYPTED MESSAGE</label>
+                        <label className="text-[10px] font-bold text-outline tracking-[0.2em] uppercase">TIN NHẮN MÃ HÓA</label>
                         <div className="relative">
                           <Textarea 
-                            placeholder="Add a tactical note..." 
+                            placeholder="Thêm ghi chú chiến thuật..." 
                             className="min-h-[120px] bg-surface-container-highest/50 border-none focus-visible:ring-1 focus-visible:ring-primary/50 text-sm tracking-wide rounded-none p-4 resize-none"
                           />
                           <Smile className="absolute bottom-4 right-4 w-5 h-5 text-outline hover:text-primary cursor-pointer transition-colors" />
@@ -247,11 +247,11 @@ export function DonateModal({ isOpen, onClose, subject }: DonateModalProps) {
                           }}
                           className="w-full h-16 bg-primary hover:bg-primary/90 text-black font-bold text-lg tracking-[0.2em] rounded-none shadow-[0_0_20px_rgba(255,184,0,0.2)]"
                         >
-                          {activeTab === 'wallet' ? 'CONFIRM DONATION' : 'CREATE QR CODE'}
+                          {activeTab === 'wallet' ? 'XÁC NHẬN ỦNG HỘ' : 'TẠO MÃ QR'}
                           <Zap className="w-6 h-6 ml-3 fill-black" />
                         </Button>
                         <p className="text-[9px] font-mono text-outline text-center tracking-[0.2em] uppercase">
-                          TRANSACTIONS ARE FINALIZED UPON CONFIRMATION.
+                          GIAO DỊCH SẼ ĐƯỢC HOÀN TẤT SAU KHI XÁC NHẬN.
                         </p>
                       </div>
                     </motion.div>

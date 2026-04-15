@@ -13,7 +13,7 @@ export function Sidebar() {
   return (
     <aside className="w-64 border-r border-outline-variant/10 bg-surface-container flex flex-col h-[calc(100vh-64px)] overflow-y-auto">
       <div className="p-4">
-        <h3 className="text-[10px] font-bold text-outline tracking-[0.2em] mb-6 px-2">ACTIVE_ZONES</h3>
+        <h3 className="text-[10px] font-bold text-outline tracking-[0.2em] mb-6 px-2">KHU VỰC HOẠT ĐỘNG</h3>
         
         <div className="space-y-1">
           {ZONES.map((zone) => (
@@ -37,11 +37,11 @@ export function Sidebar() {
       <div className="mt-auto p-4 space-y-4">
         <div className="flex items-center gap-2 px-2">
           <div className="w-1.5 h-1.5 bg-primary animate-pulse" />
-          <span className="text-[9px] font-bold text-primary tracking-widest">SYSTEM STATUS: OPTIMAL</span>
+          <span className="text-[9px] font-bold text-primary tracking-widest">TRẠNG THÁI HỆ THỐNG: TỐI ƯU</span>
         </div>
         
         <Button className="w-full bg-primary hover:bg-primary-fixed-dim text-on-primary font-bold h-12 tracking-widest text-[10px] cut-corner-sm border-none">
-          UPGRADE COMMS
+          NÂNG CẤP LIÊN LẠC
         </Button>
       </div>
     </aside>

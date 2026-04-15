@@ -1,4 +1,4 @@
-import { Search, Heart, DollarSign, Facebook, Twitter, Instagram, Youtube } from "lucide-react";
+import { Search, Heart, DollarSign, Facebook, Twitter, Instagram, Youtube, Sword } from "lucide-react";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DonateModal } from "./DonateModal";
 import { DonationHistoryDrawer } from "./DonationHistoryDrawer";
+import { ChallengeModal } from "./ChallengeModal";
 
 const FAVORITES = [
   { id: 1, name: "VALKYRIE_09", avatar: "https://picsum.photos/seed/v1/200/200", socials: ["twitter", "youtube", "instagram"], rank: "ELITE" },
@@ -36,10 +37,11 @@ interface StreamerCardProps {
   streamer: any;
   featured?: boolean;
   onDonate: (streamer: any) => void;
+  onChallenge: (streamer: any) => void;
   key?: any;
 }
 
-function StreamerCard({ streamer, featured = false, onDonate }: StreamerCardProps) {
+function StreamerCard({ streamer, featured = false, onDonate, onChallenge }: StreamerCardProps) {
   return (
     <div className={`group relative bg-surface-container-low/40 border border-outline-variant/10 p-6 flex flex-col items-center text-center space-y-4 transition-all hover:bg-surface-container-low/60`}>
       {/* Background Scanlines */}
@@ -64,6 +66,13 @@ function StreamerCard({ streamer, featured = false, onDonate }: StreamerCardProp
         </div>
       </div>
 
+      {/* Favorite Button - Top Right */}
+      <button 
+        className={`absolute top-4 right-4 z-20 p-2 transition-all hover:scale-110 ${featured ? 'text-primary' : 'text-outline hover:text-primary'}`}
+      >
+        <Heart className={`h-5 w-5 ${featured ? 'fill-primary' : ''}`} />
+      </button>
+
       {/* Info */}
       <div className="space-y-1 relative z-10">
         <h3 className={`font-display font-bold tracking-[0.1em] uppercase ${featured ? 'text-xl text-foreground' : 'text-sm text-foreground'}`}>
@@ -85,35 +94,35 @@ function StreamerCard({ streamer, featured = false, onDonate }: StreamerCardProp
         ))}
       </div>
 
-      {/* Actions */}
-      <div className="flex gap-2 w-full pt-2 relative z-10">
+      <div className="grid grid-cols-2 gap-2 w-full pt-2 relative z-10">
         <Button 
           onClick={() => onDonate(streamer)}
-          className={`flex-1 font-bold tracking-[0.2em] text-[10px] h-10 cut-corner-sm border-none ${featured ? 'bg-primary text-black hover:bg-primary/90' : 'bg-surface-container-highest/50 text-foreground hover:bg-surface-container-highest border border-outline-variant/20'}`}
+          className={`font-bold tracking-[0.1em] text-[9px] h-10 cut-corner-sm border-none ${featured ? 'bg-primary text-black hover:bg-primary/90' : 'bg-surface-container-highest/50 text-foreground hover:bg-surface-container-highest border border-outline-variant/20'}`}
         >
-          DONATE
+          ỦNG HỘ
         </Button>
         <Button 
-          size="icon" 
-          className={`h-10 w-10 cut-corner-sm border-none ${featured ? 'bg-surface-container-highest text-primary hover:text-primary' : 'bg-surface-container-highest/50 text-outline hover:text-primary border border-outline-variant/20'}`}
+          onClick={() => onChallenge(streamer)}
+          className={`font-bold tracking-[0.1em] text-[9px] h-10 cut-corner-sm bg-surface-container-highest/50 text-foreground hover:text-primary border border-primary/40 hover:border-primary transition-all`}
         >
-          <Heart className={`h-4 w-4 ${featured ? 'fill-primary' : ''}`} />
+          +1 THỬ THÁCH
         </Button>
       </div>
     </div>
   );
 }
 
-const DONATION_HISTORY = [
-  { id: 1, name: "VALKYRIE_09", avatar: "https://picsum.photos/seed/v1/100/100", amount: 250, time: "2M AGO", badge: "square" },
-  { id: 2, name: "GHOST_TACTIC", avatar: "https://picsum.photos/seed/v2/100/100", amount: 50, time: "15M AGO", badge: null },
-  { id: 3, name: "NEON_REAPER", avatar: "https://picsum.photos/seed/v3/100/100", amount: 1200, time: "22M AGO", badge: "medal" },
-  { id: 4, name: "CYBER_X", avatar: "https://picsum.photos/seed/v4/100/100", amount: 25, time: "45M AGO", badge: null },
+const RECENT_ACTIVITIES = [
+  { id: 1, type: 'donate', name: "VALKYRIE_09", avatar: "https://picsum.photos/seed/v1/100/100", amount: 250, time: "2 PHÚT TRƯỚC" },
+  { id: 2, type: 'challenge', name: "GHOST_TACTIC", avatar: "https://picsum.photos/seed/v2/100/100", amount: 50000, time: "15 PHÚT TRƯỚC", content: "Sử dụng rìu trong trận đấu tiếp theo" },
+  { id: 3, type: 'donate', name: "NEON_REAPER", avatar: "https://picsum.photos/seed/v3/100/100", amount: 1200, time: "22 PHÚT TRƯỚC" },
+  { id: 4, type: 'challenge', name: "CYBER_X", avatar: "https://picsum.photos/seed/v4/100/100", amount: 20000, time: "45 PHÚT TRƯỚC", content: "Chỉ sử dụng súng lục" },
 ];
 
 export function StreamersView() {
   const [search, setSearch] = useState("");
   const [isDonateOpen, setIsDonateOpen] = useState(false);
+  const [isChallengeOpen, setIsChallengeOpen] = useState(false);
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);
   const [selectedStreamer, setSelectedStreamer] = useState<any>(null);
 
@@ -123,6 +132,11 @@ export function StreamersView() {
       ...streamer
     });
     setIsDonateOpen(true);
+  };
+
+  const handleOpenChallenge = (streamer: any) => {
+    setSelectedStreamer(streamer);
+    setIsChallengeOpen(true);
   };
 
   const filteredStreamers = ALL_STREAMERS.filter(s => 
@@ -138,11 +152,11 @@ export function StreamersView() {
           {/* Favorited Streamers */}
           <section className="space-y-8">
             <div className="flex items-center gap-4 border-l-4 border-primary pl-4">
-              <h2 className="text-3xl font-bold tracking-tight uppercase text-foreground italic">FAVORITED_STREAMERS</h2>
+              <h2 className="text-3xl font-bold tracking-tight uppercase text-foreground italic">STREAMER YÊU THÍCH</h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {FAVORITES.map(s => (
-                <StreamerCard key={s.id} streamer={s} featured onDonate={handleOpenDonate} />
+                <StreamerCard key={s.id} streamer={s} featured onDonate={handleOpenDonate} onChallenge={handleOpenChallenge} />
               ))}
             </div>
           </section>
@@ -151,14 +165,14 @@ export function StreamersView() {
           <section className="space-y-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div className="flex items-center gap-4 border-l-4 border-primary pl-4">
-                <h2 className="text-3xl font-bold tracking-tight uppercase text-foreground italic">STREAMERS - 1,248</h2>
+                <h2 className="text-3xl font-bold tracking-tight uppercase text-foreground italic">DANH SÁCH STREAMER - 1,248</h2>
               </div>
               <div className="relative w-full md:w-80">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-outline" />
                 <Input 
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="FILTER_BY_RANK..." 
+                  placeholder="LỌC THEO CẤP BẬC..." 
                   className="pl-10 bg-surface-container-low border border-outline-variant/20 focus-visible:ring-primary/50 font-mono text-[10px] tracking-widest h-10 rounded-none"
                 />
                 <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -169,52 +183,62 @@ export function StreamersView() {
             
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {filteredStreamers.map(s => (
-                <StreamerCard key={s.id} streamer={s} onDonate={handleOpenDonate} />
+                <StreamerCard key={s.id} streamer={s} onDonate={handleOpenDonate} onChallenge={handleOpenChallenge} />
               ))}
             </div>
           </section>
         </div>
       </div>
 
-      {/* Right Sidebar: Donation History */}
+      {/* Right Sidebar: Recent Activities */}
       <aside className="w-80 shrink-0 border-l border-outline-variant/10 bg-surface-container-lowest/50 flex flex-col overflow-hidden relative z-10">
         <div className="p-6 border-b border-outline-variant/10 bg-surface-container-low/30">
-          <h3 className="text-[10px] font-bold text-outline tracking-[0.2em] uppercase">DONATION_HISTORY</h3>
+          <h3 className="text-[10px] font-bold text-outline tracking-[0.2em] uppercase">HOẠT ĐỘNG GẦN ĐÂY</h3>
         </div>
         <ScrollArea className="flex-1">
           <div className="p-4 space-y-4">
-            {DONATION_HISTORY.map((item, idx) => (
+            {RECENT_ACTIVITIES.map((item, idx) => (
               <div 
                 key={item.id} 
-                className={`relative bg-surface-container-low p-6 transition-all border-l-2 ${idx === 0 ? 'border-primary' : 'border-transparent'} hover:bg-surface-container-high`}
+                className={`relative bg-surface-container-low p-5 transition-all border-l-2 ${idx === 0 ? 'border-primary' : 'border-transparent'} hover:bg-surface-container-high group`}
               >
-                <div className="flex items-center gap-3 mb-4">
-                  <img 
-                    src={item.avatar} 
-                    alt={item.name} 
-                    className="w-8 h-8 rounded-full border border-outline-variant/30"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-foreground tracking-wider uppercase">{item.name}</span>
-                      <span className="text-[9px] font-mono text-outline uppercase">{item.time}</span>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="relative">
+                    <img 
+                      src={item.avatar} 
+                      alt={item.name} 
+                      className="w-8 h-8 rounded-full border border-outline-variant/30"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-surface-container-low flex items-center justify-center border border-outline-variant/20">
+                      {item.type === 'donate' ? (
+                        <DollarSign className="w-2.5 h-2.5 text-primary" />
+                      ) : (
+                        <Sword className="w-2.5 h-2.5 text-primary" />
+                      )}
                     </div>
                   </div>
-                </div>
-                <div className="flex items-end justify-between">
-                  <div className="text-2xl font-display font-bold text-primary tracking-tight">
-                    ${item.amount.toFixed(2)}
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-foreground tracking-wider uppercase">{item.name}</span>
+                      <span className="text-[8px] font-mono text-outline uppercase">{item.time}</span>
+                    </div>
+                    <p className="text-[9px] text-outline uppercase font-bold tracking-widest mt-0.5">
+                      {item.type === 'donate' ? 'ỦNG HỘ' : 'THỬ THÁCH'}
+                    </p>
                   </div>
-                  {item.badge === 'square' && (
-                    <div className="w-2.5 h-2.5 bg-primary" />
-                  )}
-                  {item.badge === 'medal' && (
-                    <div className="text-primary">
-                      <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor">
-                        <path d="M6 0L0 3V8C0 11.31 2.55 14.39 6 15.19C9.45 14.39 12 11.31 12 8V3L6 0ZM6 10.5C4.62 10.5 3.5 9.38 3.5 8C3.5 6.62 4.62 5.5 6 5.5C7.38 5.5 8.5 6.62 8.5 8C8.5 9.38 7.38 10.5 6 10.5Z" />
-                        <path d="M6 12L4.5 14L6 13L7.5 14L6 12Z" />
-                      </svg>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="text-xl font-display font-bold text-primary tracking-tight">
+                    {item.type === 'donate' ? `$${item.amount.toFixed(2)}` : `${item.amount.toLocaleString()} VND`}
+                  </div>
+                  {item.type === 'challenge' && (
+                    <div className="flex items-start gap-2 bg-primary/5 p-2 border border-primary/10">
+                      <Sword className="w-3 h-3 text-primary shrink-0 mt-0.5" />
+                      <p className="text-[9px] text-primary/80 leading-relaxed italic line-clamp-2">
+                        {item.content}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -228,7 +252,7 @@ export function StreamersView() {
             className="w-full text-[10px] font-bold tracking-[0.2em] uppercase h-12 rounded-none border-primary/30 bg-primary/5 text-primary hover:bg-primary hover:text-black transition-all shadow-[0_0_15px_rgba(255,184,0,0.1)]"
             onClick={() => setIsHistoryDrawerOpen(true)}
           >
-            VIEW ALL HISTORY
+            XEM TẤT CẢ LỊCH SỬ
           </Button>
         </div>
       </aside>
@@ -237,6 +261,12 @@ export function StreamersView() {
         isOpen={isDonateOpen} 
         onClose={() => setIsDonateOpen(false)} 
         subject={selectedStreamer}
+      />
+
+      <ChallengeModal 
+        isOpen={isChallengeOpen}
+        onClose={() => setIsChallengeOpen(false)}
+        streamer={selectedStreamer}
       />
 
       <DonationHistoryDrawer 

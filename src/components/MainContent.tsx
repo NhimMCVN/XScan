@@ -87,13 +87,13 @@ export function MainContent() {
           <div className="absolute top-6 left-6">
             <Badge className="bg-destructive hover:bg-destructive text-white border-none rounded-none px-3 py-1 flex items-center gap-2 font-bold tracking-[0.2em] text-[10px]">
               <div className="w-1.5 h-1.5 bg-white animate-pulse" />
-              LIVE_BATTLE
+              TRỰC TIẾP
             </Badge>
           </div>
 
           <div className="absolute bottom-6 right-6">
             <div className="bg-surface/80 backdrop-blur-md border border-outline-variant/30 px-3 py-1">
-              <span className="text-[10px] font-mono text-outline tracking-widest">SIGNAL: 1080P_60FPS</span>
+              <span className="text-[10px] font-mono text-outline tracking-widest">TÍN HIỆU: 1080P_60FPS</span>
             </div>
           </div>
         </div>
@@ -101,19 +101,19 @@ export function MainContent() {
         <div className="space-y-6">
           <div className="space-y-1">
             <h1 className="text-7xl font-bold tracking-tighter leading-[0.9] uppercase">
-              DOMINATE THE
+              THỐNG TRỊ
             </h1>
             <h1 className="text-7xl font-bold tracking-tighter leading-[0.9] uppercase text-primary">
-              DIGITAL ARENA
+              ĐẤU TRƯỜNG SỐ
             </h1>
           </div>
 
           <div className="flex gap-4">
             <Button className="bg-primary hover:bg-primary-fixed-dim text-on-primary font-bold h-12 px-8 tracking-widest text-[10px] cut-corner-sm border-none">
-              INITIATE DONATION
+              BẮT ĐẦU ỦNG HỘ
             </Button>
             <Button variant="outline" className="border-outline-variant hover:bg-surface-container-high text-foreground font-bold h-12 px-8 tracking-widest text-[10px] cut-corner-sm">
-              UPGRADE RESERVE
+              NÂNG CẤP DỰ TRỮ
             </Button>
           </div>
         </div>
@@ -124,13 +124,13 @@ export function MainContent() {
             {[1, 2, 3].map((_, i) => (
               <div key={i} className="flex gap-16">
                 <span className="text-[10px] font-bold text-outline tracking-[0.3em]">
-                  SENT <span className="text-primary">🚀 500K</span> TO STREAMER_Y
+                  ĐÃ GỬI <span className="text-primary">🚀 500K</span> CHO STREAMER_Y
                 </span>
                 <span className="text-[10px] font-bold text-outline tracking-[0.3em]">
-                  ELITE_SNIPER DEPLOYED <span className="text-primary">💎 250K</span> GEM BOOST
+                  ELITE_SNIPER ĐÃ TRIỂN KHAI <span className="text-primary">💎 250K</span> GEM BOOST
                 </span>
                 <span className="text-[10px] font-bold text-outline tracking-[0.3em]">
-                  COMMANDER_X JOINED THE LOBBY
+                  COMMANDER_X ĐÃ THAM GIA PHÒNG CHỜ
                 </span>
               </div>
             ))}
@@ -140,8 +140,8 @@ export function MainContent() {
         {/* Top Operators */}
         <div className="space-y-8">
           <div className="flex items-center justify-between border-l-2 border-primary pl-4">
-            <h2 className="text-xl font-bold tracking-[0.2em] uppercase">TOP_OPERATORS</h2>
-            <span className="text-[10px] font-mono text-outline tracking-widest">GLOBAL RANK 00:00:00</span>
+            <h2 className="text-xl font-bold tracking-[0.2em] uppercase">ĐẶC VỤ HÀNG ĐẦU</h2>
+            <span className="text-[10px] font-mono text-outline tracking-widest">XẾP HẠNG TOÀN CẦU 00:00:00</span>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
@@ -155,10 +155,10 @@ export function MainContent() {
         {/* League of Legends Section */}
         <div className="pt-12 border-t border-outline-variant/10 space-y-8">
           <div className="flex items-center gap-4">
-            <h2 className="text-3xl font-bold italic tracking-tighter uppercase text-primary">LEAGUE OF LEGENDS</h2>
+            <h2 className="text-3xl font-bold italic tracking-tighter uppercase text-primary">LIÊN MINH HUYỀN THOẠI</h2>
             <div className="h-[1px] flex-1 bg-outline-variant/20" />
             <Badge variant="outline" className="border-primary/30 text-primary rounded-none font-mono text-[9px] tracking-widest px-3">
-              24 ACTIVE BATTLES
+              24 TRẬN ĐẤU ĐANG DIỄN RA
             </Badge>
           </div>
 

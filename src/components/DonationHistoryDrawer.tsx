@@ -25,7 +25,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { Button } from "@/components/ui/button";
-import { X, Wallet, QrCode, Clock, MessageSquare, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { X, Wallet, QrCode, Clock, MessageSquare, CheckCircle2, AlertCircle, Loader2, DollarSign, Sword, ShieldAlert } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface DonationRecord {
@@ -39,6 +39,18 @@ interface DonationRecord {
   method: 'wallet' | 'qrcode';
   status: 'pending' | 'completed' | 'failed';
   message: string;
+}
+
+interface ChallengeRecord {
+  id: string;
+  time: string;
+  streamer: {
+    name: string;
+    avatar: string;
+  };
+  amount: number;
+  status: 'pending' | 'completed' | 'failed';
+  content: string;
 }
 
 const FULL_HISTORY: DonationRecord[] = [
@@ -87,7 +99,6 @@ const FULL_HISTORY: DonationRecord[] = [
     status: 'pending',
     message: "Waiting for verification..."
   },
-  // Add more mock data for pagination
   ...Array.from({ length: 15 }).map((_, i) => ({
     id: `TX-9948${i + 7}`,
     time: `2024-04-14 ${10 + i}:00`,
@@ -99,17 +110,47 @@ const FULL_HISTORY: DonationRecord[] = [
   }))
 ];
 
+const CHALLENGE_HISTORY: ChallengeRecord[] = [
+  {
+    id: "CH-1001",
+    time: "2024-04-15 11:00",
+    streamer: { name: "VALKYRIE_09", avatar: "https://picsum.photos/seed/v1/100/100" },
+    amount: 50000,
+    status: 'completed',
+    content: "Sử dụng rìu trong trận đấu tiếp theo"
+  },
+  {
+    id: "CH-1002",
+    time: "2024-04-15 10:45",
+    streamer: { name: "GHOST_TACTIC", avatar: "https://picsum.photos/seed/v2/100/100" },
+    amount: 100000,
+    status: 'pending',
+    content: "Chỉ sử dụng súng lục trong suốt hiệp đấu"
+  },
+  {
+    id: "CH-1003",
+    time: "2024-04-15 09:30",
+    streamer: { name: "NEON_REAPER", avatar: "https://picsum.photos/seed/v3/100/100" },
+    amount: 200000,
+    status: 'failed',
+    content: "Thắng trận mà không mất giáp"
+  }
+];
+
 interface DonationHistoryDrawerProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
 export function DonationHistoryDrawer({ isOpen, onClose }: DonationHistoryDrawerProps) {
+  const [activeTab, setActiveTab] = useState<'donate' | 'challenge'>('donate');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
-  const totalPages = Math.ceil(FULL_HISTORY.length / itemsPerPage);
+  
+  const historyData = activeTab === 'donate' ? FULL_HISTORY : CHALLENGE_HISTORY;
+  const totalPages = Math.ceil(historyData.length / itemsPerPage);
 
-  const currentData = FULL_HISTORY.slice(
+  const currentData = historyData.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
@@ -123,6 +164,15 @@ export function DonationHistoryDrawer({ isOpen, onClose }: DonationHistoryDrawer
     }
   };
 
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'completed': return 'Hoàn tất';
+      case 'failed': return 'Thất bại';
+      case 'pending': return 'Đang xử lý';
+      default: return status;
+    }
+  };
+
   return (
     <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DrawerContent className="bg-surface-container-low border-outline-variant/20 h-[85vh] outline-none">
@@ -131,10 +181,10 @@ export function DonationHistoryDrawer({ isOpen, onClose }: DonationHistoryDrawer
             <div className="flex items-center justify-between">
               <div className="space-y-1">
                 <DrawerTitle className="text-2xl font-bold tracking-tight uppercase text-foreground">
-                  FULL DONATION ARCHIVE
+                  KHO LƯU TRỮ GIAO DỊCH
                 </DrawerTitle>
                 <DrawerDescription className="text-[10px] font-mono text-outline tracking-widest uppercase">
-                  PROTOCOL: DATA_RETRIEVAL_V1.0 // TOTAL_RECORDS: {FULL_HISTORY.length}
+                  GIAO THỨC: DATA_RETRIEVAL_V1.0 // TỔNG SỐ BẢN GHI: {historyData.length}
                 </DrawerDescription>
               </div>
               <DrawerClose asChild>
@@ -143,6 +193,26 @@ export function DonationHistoryDrawer({ isOpen, onClose }: DonationHistoryDrawer
                 </Button>
               </DrawerClose>
             </div>
+
+            {/* Tabs */}
+            <div className="flex gap-4 mt-6">
+              <Button 
+                onClick={() => { setActiveTab('donate'); setCurrentPage(1); }}
+                variant="ghost"
+                className={`h-10 px-6 rounded-none font-bold text-[10px] tracking-widest uppercase border-b-2 transition-all ${activeTab === 'donate' ? 'border-primary text-primary bg-primary/5' : 'border-transparent text-outline hover:text-primary'}`}
+              >
+                <DollarSign className="w-4 h-4 mr-2" />
+                LỊCH SỬ ỦNG HỘ
+              </Button>
+              <Button 
+                onClick={() => { setActiveTab('challenge'); setCurrentPage(1); }}
+                variant="ghost"
+                className={`h-10 px-6 rounded-none font-bold text-[10px] tracking-widest uppercase border-b-2 transition-all ${activeTab === 'challenge' ? 'border-primary text-primary bg-primary/5' : 'border-transparent text-outline hover:text-primary'}`}
+              >
+                <Sword className="w-4 h-4 mr-2" />
+                LỊCH SỬ THỬ THÁCH
+              </Button>
+            </div>
           </DrawerHeader>
 
           <div className="flex-1 overflow-auto p-6">
@@ -150,12 +220,16 @@ export function DonationHistoryDrawer({ isOpen, onClose }: DonationHistoryDrawer
               <Table>
                 <TableHeader className="bg-surface-container-highest/30">
                   <TableRow className="hover:bg-transparent border-outline-variant/10">
-                    <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">TIME</TableHead>
+                    <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">THỜI GIAN</TableHead>
                     <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">STREAMER</TableHead>
-                    <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">AMOUNT</TableHead>
-                    <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">METHOD</TableHead>
-                    <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">STATUS</TableHead>
-                    <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">MESSAGE</TableHead>
+                    <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">SỐ TIỀN</TableHead>
+                    {activeTab === 'donate' && (
+                      <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">PHƯƠNG THỨC</TableHead>
+                    )}
+                    <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">TRẠNG THÁI</TableHead>
+                    <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">
+                      {activeTab === 'donate' ? 'TIN NHẮN' : 'NỘI DUNG THỬ THÁCH'}
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -179,14 +253,19 @@ export function DonationHistoryDrawer({ isOpen, onClose }: DonationHistoryDrawer
                         </div>
                       </TableCell>
                       <TableCell className="font-display font-bold text-primary text-sm">
-                        ${record.amount.toFixed(2)}
+                        {activeTab === 'donate' 
+                          ? `$${(record as DonationRecord).amount.toFixed(2)}` 
+                          : `${(record as ChallengeRecord).amount.toLocaleString()} VND`
+                        }
                       </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2 text-[10px] font-bold text-outline uppercase tracking-widest">
-                          {record.method === 'wallet' ? <Wallet className="w-3 h-3" /> : <QrCode className="w-3 h-3" />}
-                          {record.method}
-                        </div>
-                      </TableCell>
+                      {activeTab === 'donate' && (
+                        <TableCell>
+                          <div className="flex items-center gap-2 text-[10px] font-bold text-outline uppercase tracking-widest">
+                            {(record as DonationRecord).method === 'wallet' ? <Wallet className="w-3 h-3" /> : <QrCode className="w-3 h-3" />}
+                            {(record as DonationRecord).method === 'wallet' ? 'Ví' : 'Mã QR'}
+                          </div>
+                        </TableCell>
+                      )}
                       <TableCell>
                         <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest">
                           {getStatusIcon(record.status)}
@@ -195,14 +274,16 @@ export function DonationHistoryDrawer({ isOpen, onClose }: DonationHistoryDrawer
                             record.status === 'failed' ? 'text-destructive' : 
                             'text-primary'
                           }>
-                            {record.status}
+                            {getStatusText(record.status)}
                           </span>
                         </div>
                       </TableCell>
                       <TableCell className="max-w-[200px]">
                         <div className="flex items-start gap-2 text-[10px] text-outline leading-relaxed italic">
-                          <MessageSquare className="w-3 h-3 mt-0.5 shrink-0" />
-                          <span className="truncate">{record.message}</span>
+                          {activeTab === 'donate' ? <MessageSquare className="w-3 h-3 mt-0.5 shrink-0" /> : <Sword className="w-3 h-3 mt-0.5 shrink-0" />}
+                          <span className="truncate">
+                            {activeTab === 'donate' ? (record as DonationRecord).message : (record as ChallengeRecord).content}
+                          </span>
                         </div>
                       </TableCell>
                     </TableRow>
