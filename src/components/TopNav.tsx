@@ -14,7 +14,7 @@ export function TopNav() {
         </div>
         
         <div className="hidden md:flex items-center gap-6">
-          {['MATCHES', 'LEAGUES', 'STREAMERS', 'PROFILE', 'PLAYERS', 'STATS'].map((item) => (
+          {['MATCHES', 'LEAGUES', 'STREAMERS', 'PROFILE', 'BECOME_STREAMER'].map((item) => (
             <a 
               key={item}
               href="#" 

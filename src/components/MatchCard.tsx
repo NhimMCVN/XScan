@@ -3,8 +3,8 @@ import { Button } from "@/components/ui/button";
 interface MatchCardProps {
   key?: string | number;
   sessionId: string;
-  team1: { name: string; image: string; ratio: number };
-  team2: { name: string; image: string; ratio: number };
+  team1: { name: string; image: string; amount: string; ratio: number };
+  team2: { name: string; image: string; amount: string; ratio: number };
   format: string;
   onSupport?: () => void;
 }
@@ -62,19 +62,36 @@ export function MatchCard({ sessionId, team1, team2, format, onSupport }: MatchC
           </div>
         </div>
 
-        {/* Voting Ratio */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[8px] font-bold text-outline tracking-widest uppercase">VOTING RATIO</span>
-            <span className="text-[8px] font-mono text-foreground tracking-widest">
-              {team1.ratio}% vs {team2.ratio}%
-            </span>
+        {/* Support Intel */}
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[8px] font-bold text-outline tracking-widest uppercase">SUPPORT_INTEL</span>
+              <span className="text-[8px] font-mono text-foreground tracking-widest">
+                {team1.amount} vs {team2.amount}
+              </span>
+            </div>
+            <div className="h-1 bg-surface-container-highest w-full relative">
+              <div 
+                className="absolute left-0 top-0 bottom-0 bg-primary shadow-[0_0_8px_rgba(255,184,0,0.5)]" 
+                style={{ width: `${team1.ratio}%` }}
+              />
+            </div>
           </div>
-          <div className="h-1 bg-surface-container-highest w-full relative">
-            <div 
-              className="absolute left-0 top-0 bottom-0 bg-primary shadow-[0_0_8px_rgba(255,184,0,0.5)]" 
-              style={{ width: `${team1.ratio}%` }}
-            />
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[8px] font-bold text-primary tracking-widest uppercase">MATCH_GOAL</span>
+              <span className="text-[8px] font-mono text-foreground tracking-widest">
+                19,150 / 50,000 GEM
+              </span>
+            </div>
+            <div className="h-1 bg-surface-container-highest w-full relative">
+              <div 
+                className="absolute left-0 top-0 bottom-0 bg-primary/40" 
+                style={{ width: `38%` }}
+              />
+            </div>
           </div>
         </div>
 

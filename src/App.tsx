@@ -5,6 +5,7 @@ import { RightSidebar } from "./components/RightSidebar";
 import { MainContent } from "./components/MainContent";
 import { StreamersView } from "./components/StreamersView";
 import { UserProfileView } from "./components/UserProfileView";
+import { StreamerRegistrationView } from "./components/StreamerRegistrationView";
 
 export default function App() {
   const [currentView, setCurrentView] = useState("MATCHES");
@@ -21,11 +22,13 @@ export default function App() {
     <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
       <TopNav />
       <div className="flex flex-1 overflow-hidden">
-        {currentView !== "STREAMERS" && currentView !== "PROFILE" && <Sidebar />}
+        {currentView !== "STREAMERS" && currentView !== "PROFILE" && currentView !== "BECOME_STREAMER" && <Sidebar />}
         {currentView === "STREAMERS" ? (
           <StreamersView />
         ) : currentView === "PROFILE" ? (
           <UserProfileView />
+        ) : currentView === "BECOME_STREAMER" ? (
+          <StreamerRegistrationView />
         ) : (
           <>
             <MainContent />

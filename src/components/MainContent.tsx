@@ -43,14 +43,14 @@ import { MatchCard } from "./MatchCard";
 const MATCHES = [
   {
     sessionId: "99482",
-    team1: { name: "TEAM_VALOR", image: "https://picsum.photos/seed/t1/200/200", ratio: 65 },
-    team2: { name: "TEAM_MYSTIC", image: "https://picsum.photos/seed/t2/200/200", ratio: 35 },
+    team1: { name: "TEAM_VALOR", image: "https://picsum.photos/seed/t1/200/200", amount: "12,450 GEM", ratio: 65 },
+    team2: { name: "TEAM_MYSTIC", image: "https://picsum.photos/seed/t2/200/200", amount: "6,700 GEM", ratio: 35 },
     format: "BO3"
   },
   {
     sessionId: "88102",
-    team1: { name: "DYNASTY_X", image: "https://picsum.photos/seed/t3/200/200", ratio: 42 },
-    team2: { name: "TITAN_PRO", image: "https://picsum.photos/seed/t4/200/200", ratio: 58 },
+    team1: { name: "DYNASTY_X", image: "https://picsum.photos/seed/t3/200/200", amount: "8,200 GEM", ratio: 42 },
+    team2: { name: "TITAN_PRO", image: "https://picsum.photos/seed/t4/200/200", amount: "11,300 GEM", ratio: 58 },
     format: "BO5"
   }
 ];

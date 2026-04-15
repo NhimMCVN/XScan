@@ -12,7 +12,8 @@ import {
   X,
   CreditCard,
   ArrowRight,
-  ArrowDownCircle
+  ArrowDownCircle,
+  AlertCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +49,11 @@ export function UserProfileView() {
     if (!selectedAmount && !customAmount) return;
     setShowQR(true);
   };
+
+  const currentAmount = selectedAmount || Number(customAmount) || 0;
+  const conversionText = currency === "VND" 
+    ? `Nạp ${currentAmount.toLocaleString()} VND sẽ nhận được ${(currentAmount / 1000).toFixed(0)} GEM`
+    : `Nạp ${currentAmount.toLocaleString()} GEM sẽ cần thanh toán ${(currentAmount * 1000).toLocaleString()} VND`;
 
   return (
     <div className="flex-1 flex overflow-hidden bg-surface relative">
@@ -166,8 +172,12 @@ export function UserProfileView() {
 
           {/* Integrated Deposit Flow (Bottom) */}
           <section className="space-y-6 relative">
-            <div className="flex items-center gap-3 border-l-4 border-primary pl-4">
+            <div className="flex items-center justify-between border-l-4 border-primary pl-4">
               <h2 className="text-xl font-bold tracking-tight uppercase">Nạp tiền nhanh vào ví</h2>
+              <div className="flex items-center gap-2 bg-primary/10 px-3 py-1 rounded-full border border-primary/20">
+                <AlertCircle className="w-3 h-3 text-primary" />
+                <span className="text-[10px] font-bold text-primary tracking-wider uppercase">Tỷ giá: 1K VND = 1 GEM</span>
+              </div>
             </div>
 
             <div className="bg-surface-container-low border border-outline-variant/10 p-8 rounded-[12px] space-y-8">
@@ -238,6 +248,16 @@ export function UserProfileView() {
                     className="pl-10 h-14 bg-surface-container-highest/30 border-outline-variant/10 rounded-[12px] focus-visible:ring-primary/50 text-lg font-bold"
                   />
                 </div>
+                {currentAmount > 0 && (
+                  <motion.p 
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="text-[10px] font-bold text-primary tracking-widest uppercase flex items-center gap-2"
+                  >
+                    <Zap className="w-3 h-3" />
+                    {conversionText}
+                  </motion.p>
+                )}
               </div>
 
               {/* Create QR Button */}
