@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSelector } from "react-redux";
 import { TopNav } from "./components/TopNav";
 import { Sidebar } from "./components/Sidebar";
 import { RightSidebar } from "./components/RightSidebar";
@@ -12,34 +13,37 @@ import { StreamerDonationsView } from "./components/StreamerDonationsView";
 import { StreamerDonationLinksView } from "./components/StreamerDonationLinksView";
 import { StreamerObsSettingsView } from "./components/StreamerObsSettingsView";
 import { AuthView } from "./components/AuthView";
+import { useAppDispatch, type RootState } from "./redux";
+import { logout } from "./redux/slices/auth.slice";
 
 export default function App() {
+  const dispatch = useAppDispatch();
+  const isAuthenticated = useSelector(
+    (s: RootState) => s.auth.isAuthenticated,
+  );
   const [currentView, setCurrentView] = useState("MATCHES");
+<<<<<<< HEAD
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [role, setRole] = useState<"USER" | "STREAMER">("USER");
+=======
+>>>>>>> 92deedb (add redux and login register)
 
   useEffect(() => {
-    const handleNavigate = (e: any) => {
-      if (e.detail === 'LOGOUT') {
-        setIsLoggedIn(false);
+    const handleNavigate = (e: Event) => {
+      const detail = (e as CustomEvent<string>).detail;
+      if (detail === "LOGOUT") {
+        dispatch(logout());
         setCurrentView("MATCHES");
         return;
       }
-      setCurrentView(e.detail);
+      setCurrentView(detail);
     };
-    const handleToggleRole = () => {
-      setRole(prev => prev === "USER" ? "STREAMER" : "USER");
-    };
-    window.addEventListener('navigate', handleNavigate);
-    window.addEventListener('toggleRole', handleToggleRole);
-    return () => {
-      window.removeEventListener('navigate', handleNavigate);
-      window.removeEventListener('toggleRole', handleToggleRole);
-    };
-  }, []);
+    window.addEventListener("navigate", handleNavigate);
+    return () => window.removeEventListener("navigate", handleNavigate);
+  }, [dispatch]);
 
-  if (!isLoggedIn) {
-    return <AuthView onLogin={() => setIsLoggedIn(true)} />;
+  if (!isAuthenticated) {
+    return <AuthView />;
   }
 
   return (
