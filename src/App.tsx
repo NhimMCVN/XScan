@@ -9,18 +9,21 @@ import { UserDashboardView } from "./components/UserDashboardView";
 import { StreamerDashboardView } from "./components/StreamerDashboardView";
 import { StreamerRegistrationView } from "./components/StreamerRegistrationView";
 import { StreamerChallengesView } from "./components/StreamerChallengesView";
+import { DonorChallengesView } from "./components/DonorChallengesView";
 import { StreamerDonationsView } from "./components/StreamerDonationsView";
 import { StreamerDonationLinksView } from "./components/StreamerDonationLinksView";
 import { StreamerObsSettingsView } from "./components/StreamerObsSettingsView";
 import { AuthView } from "./components/AuthView";
 import { useAppDispatch, type RootState } from "./redux";
 import { logout } from "./redux/slices/auth.slice";
+import { isStreamerRole } from "./utils/userRole";
 
 export default function App() {
   const dispatch = useAppDispatch();
   const isAuthenticated = useSelector(
     (s: RootState) => s.auth.isAuthenticated,
   );
+  const userRole = useSelector((s: RootState) => s.auth.user?.role);
   const [currentView, setCurrentView] = useState("MATCHES");
 <<<<<<< HEAD
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -58,7 +61,11 @@ export default function App() {
         ) : currentView === "BECOME_STREAMER" ? (
           <StreamerRegistrationView />
         ) : currentView === "STREAMER_CHALLENGES" ? (
-          <StreamerChallengesView />
+          userRole && !isStreamerRole(userRole) ? (
+            <DonorChallengesView />
+          ) : (
+            <StreamerChallengesView />
+          )
         ) : currentView === "STREAMER_DONATIONS" ? (
           <StreamerDonationsView />
         ) : currentView === "DONATION_LINKS" ? (
