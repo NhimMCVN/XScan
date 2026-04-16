@@ -10,6 +10,7 @@ import { StreamerRegistrationView } from "./components/StreamerRegistrationView"
 import { StreamerChallengesView } from "./components/StreamerChallengesView";
 import { StreamerDonationsView } from "./components/StreamerDonationsView";
 import { StreamerDonationLinksView } from "./components/StreamerDonationLinksView";
+import { StreamerObsSettingsView } from "./components/StreamerObsSettingsView";
 import { AuthView } from "./components/AuthView";
 
 export default function App() {
@@ -45,7 +46,7 @@ export default function App() {
     <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
       <TopNav />
       <div className="flex flex-1 overflow-hidden">
-        {currentView !== "STREAMERS" && currentView !== "PROFILE" && currentView !== "BECOME_STREAMER" && currentView !== "STREAMER_CHALLENGES" && currentView !== "STREAMER_DONATIONS" && currentView !== "DONATION_LINKS" && <Sidebar />}
+        {currentView !== "STREAMERS" && currentView !== "PROFILE" && currentView !== "BECOME_STREAMER" && currentView !== "STREAMER_CHALLENGES" && currentView !== "STREAMER_DONATIONS" && currentView !== "DONATION_LINKS" && currentView !== "OBS_SETTINGS" && <Sidebar />}
         {currentView === "STREAMERS" ? (
           <StreamersView />
         ) : currentView === "PROFILE" ? (
@@ -58,6 +59,8 @@ export default function App() {
           <StreamerDonationsView />
         ) : currentView === "DONATION_LINKS" ? (
           <StreamerDonationLinksView />
+        ) : currentView === "OBS_SETTINGS" ? (
+          <StreamerObsSettingsView />
         ) : (
           <>
             <MainContent />

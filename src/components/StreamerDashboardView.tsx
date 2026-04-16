@@ -218,6 +218,16 @@ export function StreamerDashboardView() {
                       </div>
                     </div>
                   </div>
+
+                  <div className="flex items-center gap-3 bg-surface-container/50 p-2.5 md:p-3 rounded-[12px] border border-outline-variant/5 cursor-pointer hover:bg-surface-container-highest/20 transition-colors" onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'OBS_SETTINGS' }))}>
+                    <div className="w-6 h-6 md:w-8 md:h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                      <Settings className="w-3 h-3 md:w-4 md:h-4" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-[9px] md:text-[10px] text-outline uppercase font-bold tracking-widest">Cấu hình</p>
+                      <p className="text-xs md:text-sm font-medium">OBS Alert Settings</p>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="bg-surface-container/30 p-3 md:p-4 rounded-[12px] border border-outline-variant/5">
