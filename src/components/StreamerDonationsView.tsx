@@ -101,37 +101,37 @@ export function StreamerDonationsView() {
       <div className="scanline" />
       
       {/* Header */}
-      <div className="p-8 border-b border-outline-variant/10 bg-surface-container-low/30">
-        <div className="max-w-6xl mx-auto w-full flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="p-4 md:p-6 lg:p-8 border-b border-outline-variant/10 bg-surface-container-low/30">
+        <div className="max-w-6xl mx-auto w-full flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6">
           <div className="space-y-1">
-            <h2 className="text-3xl font-bold tracking-tight uppercase text-foreground italic flex items-center gap-3">
-              <DollarSign className="w-8 h-8 text-primary" />
+            <h2 className="text-xl md:text-2xl lg:text-3xl font-bold tracking-tight uppercase text-foreground italic flex items-center gap-2 md:gap-3">
+              <DollarSign className="w-6 h-6 md:w-8 md:h-8 text-primary" />
               LỊCH SỬ NHẬN DONATE
             </h2>
-            <p className="text-[10px] font-mono text-outline tracking-widest uppercase">
+            <p className="text-[8px] md:text-[10px] font-mono text-outline tracking-widest uppercase">
               GIAO THỨC: REVENUE_TRACKER_V4.0
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 md:gap-3">
             <Select value={dateFilter} onValueChange={(val) => { setDateFilter(val); setCurrentPage(1); }}>
-              <SelectTrigger className="w-[160px] bg-surface-container-highest/30 border-outline-variant/20 rounded-none h-10 text-[10px] font-bold uppercase tracking-widest">
+              <SelectTrigger className="w-[140px] md:w-[160px] bg-surface-container-highest/30 border-outline-variant/20 rounded-none h-8 md:h-10 text-[9px] md:text-[10px] font-bold uppercase tracking-widest">
                 <SelectValue placeholder="THỜI GIAN" />
               </SelectTrigger>
               <SelectContent className="bg-surface-container-low border-outline-variant/20 rounded-none">
-                <SelectItem value="all" className="text-[10px] font-bold uppercase">TẤT CẢ THỜI GIAN</SelectItem>
-                <SelectItem value="today" className="text-[10px] font-bold uppercase">HÔM NAY</SelectItem>
-                <SelectItem value="yesterday" className="text-[10px] font-bold uppercase">HÔM QUA</SelectItem>
+                <SelectItem value="all" className="text-[9px] md:text-[10px] font-bold uppercase">TẤT CẢ THỜI GIAN</SelectItem>
+                <SelectItem value="today" className="text-[9px] md:text-[10px] font-bold uppercase">HÔM NAY</SelectItem>
+                <SelectItem value="yesterday" className="text-[9px] md:text-[10px] font-bold uppercase">HÔM QUA</SelectItem>
               </SelectContent>
             </Select>
 
             <Select value={sortBy} onValueChange={(val) => { setSortBy(val); setCurrentPage(1); }}>
-              <SelectTrigger className="w-[160px] bg-surface-container-highest/30 border-outline-variant/20 rounded-none h-10 text-[10px] font-bold uppercase tracking-widest">
+              <SelectTrigger className="w-[140px] md:w-[160px] bg-surface-container-highest/30 border-outline-variant/20 rounded-none h-8 md:h-10 text-[9px] md:text-[10px] font-bold uppercase tracking-widest">
                 <SelectValue placeholder="SẮP XẾP" />
               </SelectTrigger>
               <SelectContent className="bg-surface-container-low border-outline-variant/20 rounded-none">
-                <SelectItem value="newest" className="text-[10px] font-bold uppercase">MỚI NHẤT</SelectItem>
-                <SelectItem value="highest" className="text-[10px] font-bold uppercase">TIỀN NHIỀU NHẤT</SelectItem>
+                <SelectItem value="newest" className="text-[9px] md:text-[10px] font-bold uppercase">MỚI NHẤT</SelectItem>
+                <SelectItem value="highest" className="text-[9px] md:text-[10px] font-bold uppercase">TIỀN NHIỀU NHẤT</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -141,8 +141,8 @@ export function StreamerDonationsView() {
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Main List */}
         <ScrollArea className="flex-1">
-          <div className="p-8 max-w-4xl mx-auto w-full space-y-4">
-            <div className="bg-surface-container-low/40 border border-outline-variant/10 mb-8">
+          <div className="p-4 md:p-6 lg:p-8 max-w-4xl mx-auto w-full space-y-4">
+            <div className="bg-surface-container-low/40 border border-outline-variant/10 mb-6 md:mb-8">
               <Table>
                 <TableHeader>
                   <TableRow className="border-outline-variant/10 hover:bg-transparent">
@@ -223,27 +223,27 @@ export function StreamerDonationsView() {
         </ScrollArea>
 
         {/* Top Donors Sidebar */}
-        <aside className="w-full lg:w-80 bg-surface-container-lowest/50 border-l border-outline-variant/10 p-8 space-y-8">
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 border-l-2 border-primary pl-3">
-              <Trophy className="w-5 h-5 text-primary" />
-              <h3 className="text-[10px] font-bold text-foreground tracking-[0.2em] uppercase">TOP 5 CHIẾN BINH</h3>
+        <aside className="w-full lg:w-80 bg-surface-container-lowest/50 border-l border-outline-variant/10 p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8">
+          <div className="space-y-3 md:space-y-4">
+            <div className="flex items-center gap-2 md:gap-3 border-l-2 border-primary pl-2 md:pl-3">
+              <Trophy className="w-4 h-4 md:w-5 md:h-5 text-primary" />
+              <h3 className="text-[9px] md:text-[10px] font-bold text-foreground tracking-[0.2em] uppercase">TOP 5 CHIẾN BINH</h3>
             </div>
             
-            <div className="space-y-3">
+            <div className="space-y-2 md:space-y-3">
               {topDonors.map((donor: any, idx) => (
-                <div key={donor.name} className="relative bg-surface-container-low p-4 border border-outline-variant/5 group hover:border-primary/30 transition-all">
-                  <div className="absolute -top-2 -left-2 w-5 h-5 bg-primary flex items-center justify-center text-black text-[10px] font-bold italic">
+                <div key={donor.name} className="relative bg-surface-container-low p-3 md:p-4 border border-outline-variant/5 group hover:border-primary/30 transition-all">
+                  <div className="absolute -top-1.5 -left-1.5 md:-top-2 md:-left-2 w-4 h-4 md:w-5 md:h-5 bg-primary flex items-center justify-center text-black text-[8px] md:text-[10px] font-bold italic">
                     #{idx + 1}
                   </div>
-                  <div className="flex items-center gap-3">
-                    <Avatar className="w-8 h-8 border border-outline-variant/20">
+                  <div className="flex items-center gap-2 md:gap-3">
+                    <Avatar className="w-6 h-6 md:w-8 md:h-8 border border-outline-variant/20">
                       <AvatarImage src={donor.avatar} referrerPolicy="no-referrer" />
                       <AvatarFallback>{donor.name[0]}</AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[10px] font-bold text-foreground uppercase truncate">{donor.name}</p>
-                      <p className="text-[11px] font-display font-bold text-primary tracking-tight">
+                      <p className="text-[9px] md:text-[10px] font-bold text-foreground uppercase truncate">{donor.name}</p>
+                      <p className="text-[10px] md:text-[11px] font-display font-bold text-primary tracking-tight">
                         {donor.total.toLocaleString()} VND
                       </p>
                     </div>
@@ -253,9 +253,9 @@ export function StreamerDonationsView() {
             </div>
           </div>
 
-          <div className="bg-primary/5 border border-primary/10 p-4 space-y-2">
-            <p className="text-[9px] font-bold text-primary uppercase tracking-widest">THÔNG TIN DOANH THU</p>
-            <p className="text-[10px] text-outline leading-relaxed uppercase tracking-wider">
+          <div className="bg-primary/5 border border-primary/10 p-3 md:p-4 space-y-1.5 md:space-y-2">
+            <p className="text-[8px] md:text-[9px] font-bold text-primary uppercase tracking-widest">THÔNG TIN DOANH THU</p>
+            <p className="text-[9px] md:text-[10px] text-outline leading-relaxed uppercase tracking-wider">
               Dữ liệu được cập nhật theo thời gian thực từ hệ thống thanh toán tập trung.
             </p>
           </div>

@@ -136,56 +136,56 @@ export function StreamerChallengesView() {
       <div className="scanline" />
       
       {/* Header */}
-      <div className="p-8 border-b border-outline-variant/10 bg-surface-container-low/30">
-        <div className="max-w-6xl mx-auto w-full flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="p-4 md:p-6 lg:p-8 border-b border-outline-variant/10 bg-surface-container-low/30">
+        <div className="max-w-6xl mx-auto w-full flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6">
           <div className="space-y-1">
-            <h2 className="text-3xl font-bold tracking-tight uppercase text-foreground italic flex items-center gap-3">
-              <Sword className="w-8 h-8 text-primary" />
+            <h2 className="text-xl md:text-2xl lg:text-3xl font-bold tracking-tight uppercase text-foreground italic flex items-center gap-2 md:gap-3">
+              <Sword className="w-6 h-6 md:w-8 md:h-8 text-primary" />
               QUẢN LÝ THỬ THÁCH
             </h2>
-            <p className="text-[10px] font-mono text-outline tracking-widest uppercase">
+            <p className="text-[8px] md:text-[10px] font-mono text-outline tracking-widest uppercase">
               GIAO THỨC: CHALLENGE_CONTROL_CENTER_V2.1
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 md:gap-3">
             {/* Status Filter */}
             <Select value={statusFilter} onValueChange={(val) => { setStatusFilter(val); setCurrentPage(1); }}>
-              <SelectTrigger className="w-[140px] bg-surface-container-highest/30 border-outline-variant/20 rounded-none h-10 text-[10px] font-bold uppercase tracking-widest">
+              <SelectTrigger className="w-[120px] md:w-[140px] bg-surface-container-highest/30 border-outline-variant/20 rounded-none h-8 md:h-10 text-[9px] md:text-[10px] font-bold uppercase tracking-widest">
                 <SelectValue placeholder="TRẠNG THÁI" />
               </SelectTrigger>
               <SelectContent className="bg-surface-container-low border-outline-variant/20 rounded-none">
-                <SelectItem value="all" className="text-[10px] font-bold uppercase">TẤT CẢ TRẠNG THÁI</SelectItem>
-                <SelectItem value="pending" className="text-[10px] font-bold uppercase">CHỜ DUYỆT</SelectItem>
-                <SelectItem value="approved" className="text-[10px] font-bold uppercase">ĐÃ CHẤP NHẬN</SelectItem>
-                <SelectItem value="rejected" className="text-[10px] font-bold uppercase">ĐÃ TỪ CHỐI</SelectItem>
-                <SelectItem value="completed" className="text-[10px] font-bold uppercase">HOÀN THÀNH</SelectItem>
+                <SelectItem value="all" className="text-[9px] md:text-[10px] font-bold uppercase">TẤT CẢ TRẠNG THÁI</SelectItem>
+                <SelectItem value="pending" className="text-[9px] md:text-[10px] font-bold uppercase">CHỜ DUYỆT</SelectItem>
+                <SelectItem value="approved" className="text-[9px] md:text-[10px] font-bold uppercase">ĐÃ CHẤP NHẬN</SelectItem>
+                <SelectItem value="rejected" className="text-[9px] md:text-[10px] font-bold uppercase">ĐÃ TỪ CHỐI</SelectItem>
+                <SelectItem value="completed" className="text-[9px] md:text-[10px] font-bold uppercase">HOÀN THÀNH</SelectItem>
               </SelectContent>
             </Select>
 
             {/* Amount Filter */}
             <Select value={amountFilter} onValueChange={(val) => { setAmountFilter(val); setCurrentPage(1); }}>
-              <SelectTrigger className="w-[160px] bg-surface-container-highest/30 border-outline-variant/20 rounded-none h-10 text-[10px] font-bold uppercase tracking-widest">
+              <SelectTrigger className="w-[140px] md:w-[160px] bg-surface-container-highest/30 border-outline-variant/20 rounded-none h-8 md:h-10 text-[9px] md:text-[10px] font-bold uppercase tracking-widest">
                 <SelectValue placeholder="MỨC TIỀN" />
               </SelectTrigger>
               <SelectContent className="bg-surface-container-low border-outline-variant/20 rounded-none">
-                <SelectItem value="all" className="text-[10px] font-bold uppercase">TẤT CẢ MỨC TIỀN</SelectItem>
-                <SelectItem value="under100" className="text-[10px] font-bold uppercase">DƯỚI 100K</SelectItem>
-                <SelectItem value="100-500" className="text-[10px] font-bold uppercase">100K - 500K</SelectItem>
-                <SelectItem value="500-1m" className="text-[10px] font-bold uppercase">500K - 1M</SelectItem>
-                <SelectItem value="1m-5m" className="text-[10px] font-bold uppercase">1M - 5M</SelectItem>
-                <SelectItem value="over5m" className="text-[10px] font-bold uppercase">TRÊN 5M</SelectItem>
+                <SelectItem value="all" className="text-[9px] md:text-[10px] font-bold uppercase">TẤT CẢ MỨC TIỀN</SelectItem>
+                <SelectItem value="under100" className="text-[9px] md:text-[10px] font-bold uppercase">DƯỚI 100K</SelectItem>
+                <SelectItem value="100-500" className="text-[9px] md:text-[10px] font-bold uppercase">100K - 500K</SelectItem>
+                <SelectItem value="500-1m" className="text-[9px] md:text-[10px] font-bold uppercase">500K - 1M</SelectItem>
+                <SelectItem value="1m-5m" className="text-[9px] md:text-[10px] font-bold uppercase">1M - 5M</SelectItem>
+                <SelectItem value="over5m" className="text-[9px] md:text-[10px] font-bold uppercase">TRÊN 5M</SelectItem>
               </SelectContent>
             </Select>
 
             {/* Sort */}
             <Select value={sortBy} onValueChange={(val) => { setSortBy(val); setCurrentPage(1); }}>
-              <SelectTrigger className="w-[140px] bg-surface-container-highest/30 border-outline-variant/20 rounded-none h-10 text-[10px] font-bold uppercase tracking-widest">
+              <SelectTrigger className="w-[120px] md:w-[140px] bg-surface-container-highest/30 border-outline-variant/20 rounded-none h-8 md:h-10 text-[9px] md:text-[10px] font-bold uppercase tracking-widest">
                 <SelectValue placeholder="SẮP XẾP" />
               </SelectTrigger>
               <SelectContent className="bg-surface-container-low border-outline-variant/20 rounded-none">
-                <SelectItem value="newest" className="text-[10px] font-bold uppercase">MỚI NHẤT</SelectItem>
-                <SelectItem value="highest" className="text-[10px] font-bold uppercase">TIỀN NHIỀU NHẤT</SelectItem>
+                <SelectItem value="newest" className="text-[9px] md:text-[10px] font-bold uppercase">MỚI NHẤT</SelectItem>
+                <SelectItem value="highest" className="text-[9px] md:text-[10px] font-bold uppercase">TIỀN NHIỀU NHẤT</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -194,8 +194,8 @@ export function StreamerChallengesView() {
 
       {/* Content */}
       <ScrollArea className="flex-1">
-        <div className="p-8 max-w-6xl mx-auto w-full">
-          <div className="bg-surface-container-low/40 border border-outline-variant/10 mb-8">
+        <div className="p-4 md:p-6 lg:p-8 max-w-6xl mx-auto w-full">
+          <div className="bg-surface-container-low/40 border border-outline-variant/10 mb-6 md:mb-8">
             <Table>
               <TableHeader>
                 <TableRow className="border-outline-variant/10 hover:bg-transparent">

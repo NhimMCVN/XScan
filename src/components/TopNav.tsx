@@ -50,6 +50,16 @@ export function TopNav() {
       </div>
 
       <div className="flex items-center gap-3">
+        {/* Role Toggle (Demo) */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-[9px] font-bold tracking-widest uppercase border-primary/30 text-primary hover:bg-primary hover:text-black h-8"
+          onClick={() => window.dispatchEvent(new CustomEvent('toggleRole'))}
+        >
+          ĐỔI ROLE
+        </Button>
+
         {/* Wallet Info */}
         <div className="flex items-center gap-2 px-3 py-1.5 bg-surface-container-highest/50 border border-outline-variant/10">
           <Wallet className="w-4 h-4 text-primary" />
