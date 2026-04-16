@@ -339,6 +339,7 @@ export function StreamersView() {
   const donateSubject = selectedStreamer
     ? {
         type: "streamer" as const,
+        streamerId: selectedStreamer.id,
         name: selectedStreamer.name,
         avatar: selectedStreamer.avatar,
         level: selectedStreamer.level,

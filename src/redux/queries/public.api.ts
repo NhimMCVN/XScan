@@ -371,6 +371,7 @@ export const {
   useGetPublicDonationStatsQuery,
   useGetPublicLeaderboardDonorsQuery,
   useLazyGetPublicDonationLinkByCustomUrlQuery,
+  useGetPublicDonationLinksByStreamerQuery,
   useLazyGetPublicDonationLinksByStreamerQuery,
   useLazyGetPublicDonationLinkByIdQuery,
   useLazyGetWidgetSettingsQuery,
