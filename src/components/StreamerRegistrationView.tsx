@@ -39,6 +39,7 @@ export function StreamerRegistrationView() {
   const [otherCategory, setOtherCategory] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const platforms = [
     { id: "youtube", name: "YouTube", icon: <Youtube className="w-5 h-5" /> },
@@ -70,8 +71,40 @@ export function StreamerRegistrationView() {
   ];
 
   const handleSubmit = () => {
-    setIsSubmitted(true);
+    setIsVerifying(true);
   };
+
+  if (isVerifying) {
+    return (
+      <div className="flex-1 bg-surface flex items-center justify-center p-8">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-md w-full bg-surface-container-low border border-primary/30 p-12 text-center space-y-8 cut-corner shadow-[0_0_50px_rgba(255,184,0,0.1)]"
+        >
+          <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto border-2 border-primary">
+            <ShieldCheck className="w-10 h-10 text-primary" />
+          </div>
+          <div className="space-y-4">
+            <h2 className="text-2xl font-bold tracking-tight text-foreground uppercase italic">XÁC THỰC TÀI KHOẢN</h2>
+            <p className="text-outline text-sm leading-relaxed">
+              Vui lòng nhập mã xác thực đã được gửi đến email đăng ký của bạn để hoàn tất quá trình đăng ký.
+            </p>
+            <Input 
+              placeholder="Nhập 6 chữ số..." 
+              className="h-14 text-center text-2xl tracking-[0.5em] bg-surface-container-highest/30 border-outline-variant/10 rounded-[12px]"
+            />
+          </div>
+          <Button 
+            onClick={() => { setIsVerifying(false); setIsSubmitted(true); }}
+            className="w-full h-14 bg-primary hover:bg-primary/90 text-black font-bold tracking-widest rounded-none"
+          >
+            XÁC NHẬN
+          </Button>
+        </motion.div>
+      </div>
+    );
+  }
 
   if (isSubmitted) {
     return (
