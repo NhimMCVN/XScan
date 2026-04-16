@@ -11,6 +11,7 @@ export interface ApiResponse<T = any> {
 export interface FavoriteStreamerInfo {
   _id?: string;
   displayName?: string;
+  username?: string;
   profilePicture?: string;
   bio?: string;
 }

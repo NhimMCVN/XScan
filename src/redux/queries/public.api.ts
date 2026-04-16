@@ -194,6 +194,19 @@ export interface DonationLinkPublic {
   [key: string]: unknown;
 }
 
+/** GET /public/leaderboard/donors — core_controller.LeaderboardDonorDTO[] */
+export interface LeaderboardDonorDTO {
+  displayName?: string;
+  donationCount?: number;
+  donorId?: string;
+  profilePicture?: string;
+  streamerCount?: number;
+  totalAmount?: number;
+  username?: string;
+}
+
+export type PublicLeaderboardDonorsPeriod = "month" | "all";
+
 export const publicApi = createApi({
   reducerPath: "publicApi",
   tagTypes: ["Public", "Auth"],
@@ -225,6 +238,25 @@ export const publicApi = createApi({
         url: "/public/donations/stats",
         method: "GET",
       }),
+    }),
+    /** GET /public/leaderboard/donors — bảng xếp hạng donor (?period=month mặc định, hoặc all) */
+    getPublicLeaderboardDonors: builder.query<
+      ApiResponse<LeaderboardDonorDTO[]>,
+      { period?: PublicLeaderboardDonorsPeriod } | void
+    >({
+      query: (params) => {
+        const period =
+          params &&
+          typeof params === "object" &&
+          (params.period === "month" || params.period === "all")
+            ? params.period
+            : "month";
+        return {
+          url: "/public/leaderboard/donors",
+          method: "GET",
+          params: { period },
+        };
+      },
     }),
     /** OpenAPI: GET /public/donation-links/{customUrl} — lấy link (cần _id để POST /donations) */
     getPublicDonationLinkByCustomUrl: builder.query<
@@ -337,6 +369,7 @@ export const {
   useVerifyMutation,
   useWelcomeQuery,
   useGetPublicDonationStatsQuery,
+  useGetPublicLeaderboardDonorsQuery,
   useLazyGetPublicDonationLinkByCustomUrlQuery,
   useLazyGetPublicDonationLinksByStreamerQuery,
   useLazyGetPublicDonationLinkByIdQuery,
