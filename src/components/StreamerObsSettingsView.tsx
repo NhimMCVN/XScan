@@ -35,7 +35,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
-import { Select, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getPublicAppOrigin } from "@/src/constants";
@@ -64,6 +70,115 @@ const UNLIMITED_MAX_SENTINEL = 9e15;
 
 /** Luôn render dòng đầu: cấu hình gốc trên `my-settings` (không phải một donation level). */
 const OBS_GLOBAL_DEFAULT_LIST_KEY = "__obs_global_default__";
+
+const ANIMATION_TYPES = [
+  { value: "fade", label: "Fade" },
+  { value: "slide", label: "Slide" },
+  { value: "zoom", label: "Zoom" },
+  { value: "bounce", label: "Bounce" },
+] as const;
+
+const ANIMATION_DIRECTIONS = [
+  { value: "top", label: "Từ trên" },
+  { value: "bottom", label: "Từ dưới" },
+  { value: "left", label: "Từ trái" },
+  { value: "right", label: "Từ phải" },
+] as const;
+
+const EASING_OPTIONS = [
+  { value: "linear", label: "Linear" },
+  { value: "ease-in", label: "Ease in" },
+  { value: "ease-out", label: "Ease out" },
+  { value: "ease-in-out", label: "Ease in-out" },
+] as const;
+
+const WIDGET_ANCHOR_OPTIONS = [
+  { value: "top-left", label: "Trên — trái" },
+  { value: "top-center", label: "Trên — giữa" },
+  { value: "top-right", label: "Trên — phải" },
+  { value: "middle-left", label: "Giữa — trái" },
+  { value: "middle-center", label: "Giữa — giữa" },
+  { value: "middle-right", label: "Giữa — phải" },
+  { value: "bottom-left", label: "Dưới — trái" },
+  { value: "bottom-center", label: "Dưới — giữa" },
+  { value: "bottom-right", label: "Dưới — phải" },
+] as const;
+
+const FONT_WEIGHT_OPTIONS = [
+  { value: "normal", label: "Normal" },
+  { value: "bold", label: "Bold" },
+  { value: "600", label: "600" },
+  { value: "700", label: "700" },
+  { value: "800", label: "800" },
+] as const;
+
+function debounce<T extends (...args: never[]) => void>(fn: T, ms: number) {
+  let id: ReturnType<typeof setTimeout> | undefined;
+  return (...args: Parameters<T>) => {
+    if (id) clearTimeout(id);
+    id = setTimeout(() => fn(...args), ms);
+  };
+}
+
+function clamp255(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.min(255, Math.max(0, Math.round(n)));
+}
+
+function byteToHex2(n: number): string {
+  return clamp255(n).toString(16).padStart(2, "0");
+}
+
+function isTransparentCss(input: string): boolean {
+  const s = input.trim().toLowerCase();
+  if (s === "transparent") return true;
+  const rgba =
+    /^rgba\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*,\s*([\d.]+)\s*\)/i.exec(
+      input.trim(),
+    );
+  if (rgba) {
+    const a = Number(rgba[1]);
+    return Number.isFinite(a) && a === 0;
+  }
+  return false;
+}
+
+/** Chuẩn hoá màu CSS (rgb/rgba/#…) → `#rrggbb` cho `<input type="color">`. */
+function cssColorToHex(input: string): string {
+  const s = input.trim();
+  if (!s) return "#000000";
+  if (isTransparentCss(s)) return "#000000";
+  const hex6 = /^#([0-9a-f]{6})$/i.exec(s);
+  if (hex6?.[1]) return `#${hex6[1].toLowerCase()}`;
+  const hex3 = /^#([0-9a-f]{3})$/i.exec(s);
+  if (hex3?.[1]) {
+    const h = hex3[1];
+    return `#${h[0]}${h[0]}${h[1]}${h[1]}${h[2]}${h[2]}`.toLowerCase();
+  }
+  const rgb =
+    /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/i.exec(s);
+  if (rgb) {
+    return `#${byteToHex2(Number(rgb[1]))}${byteToHex2(Number(rgb[2]))}${byteToHex2(Number(rgb[3]))}`;
+  }
+  if (typeof document !== "undefined") {
+    try {
+      const el = document.createElement("span");
+      el.style.color = s;
+      if (!el.style.color) return "#000000";
+      document.documentElement.appendChild(el);
+      const resolved = getComputedStyle(el).color;
+      document.documentElement.removeChild(el);
+      const m =
+        /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/i.exec(resolved);
+      if (m) {
+        return `#${byteToHex2(Number(m[1]))}${byteToHex2(Number(m[2]))}${byteToHex2(Number(m[3]))}`;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  return "#000000";
+}
 
 function getMutationError(e: unknown): string {
   if (!e || typeof e !== "object") return "Có lỗi xảy ra.";
@@ -1291,6 +1406,49 @@ function CheckMini() {
   );
 }
 
+function ObsSettingsSection({
+  title,
+  children,
+  className = "",
+  rightContent,
+}: {
+  title: string;
+  children: ReactNode;
+  className?: string;
+  rightContent?: ReactNode;
+}) {
+  return (
+    <div
+      className={`bg-[#1A1A1A] p-6 space-y-4 border-l-4 border-primary ${className}`}
+    >
+      <div className="flex justify-between items-center">
+        <h4 className="font-extrabold uppercase tracking-widest text-primary flex items-center gap-2">
+          {title}
+        </h4>
+        {rightContent}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ObsSettingsControl({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="bg-[#333333] p-4 space-y-1">
+      <Label className="text-[10px] font-bold uppercase text-[#999999]">
+        {label}
+      </Label>
+      {children}
+    </div>
+  );
+}
+
 function SettingsForm(
   props:
     | { scope: "global"; configuration?: Record<string, unknown> }
@@ -1309,8 +1467,11 @@ function SettingsForm(
   const [uploadSlot, setUploadSlot] = useState<null | "visual" | "sound">(null);
   const [uploadMedia, { isLoading: uploading }] = useUploadMediaMutation();
   const [deleteMedia, { isLoading: deleting }] = useDeleteMediaMutation();
-  const [updateLevel] = useUpdateDonationLevelMutation();
-  const [updateMySettings] = useUpdateMySettingsMutation();
+  const [updateLevel, { isLoading: savingLevel }] =
+    useUpdateDonationLevelMutation();
+  const [updateMySettings, { isLoading: savingGlobal }] =
+    useUpdateMySettingsMutation();
+  const savingNested = savingLevel || savingGlobal;
 
   const imageSettings = configuration?.imageSettings as
     | { url?: string | null; mediaType?: string | null }
@@ -1337,6 +1498,48 @@ function SettingsForm(
       ...patch,
     }),
     [configuration],
+  );
+
+  const persistConfigPatch = useCallback(
+    async (
+      key:
+        | "soundSettings"
+        | "animationSettings"
+        | "styleSettings"
+        | "displaySettings"
+        | "positionSettings",
+      patch: Record<string, unknown>,
+    ) => {
+      if (!isGlobal && !levelRouteId) return;
+      const prevRaw = configuration?.[key];
+      const base =
+        prevRaw && typeof prevRaw === "object" && !Array.isArray(prevRaw)
+          ? { ...(prevRaw as Record<string, unknown>) }
+          : {};
+      const next = { ...base, ...patch };
+      try {
+        if (isGlobal) {
+          await updateMySettings({ [key]: next } as never).unwrap();
+        } else if (levelRouteId) {
+          await updateLevel({
+            levelId: levelRouteId,
+            body: {
+              configuration: mergeConfiguration({ [key]: next }),
+            },
+          }).unwrap();
+        }
+      } catch (err) {
+        console.warn(getMutationError(err));
+      }
+    },
+    [
+      configuration,
+      isGlobal,
+      levelRouteId,
+      mergeConfiguration,
+      updateLevel,
+      updateMySettings,
+    ],
   );
 
   const persistMediaConfig = async (nextConfig: Record<string, unknown>) => {
@@ -1475,45 +1678,6 @@ function SettingsForm(
 
   const canPersist = isGlobal || Boolean(levelRouteId);
 
-  const Section = ({
-    title,
-    children,
-    className = "",
-    rightContent,
-  }: {
-    title: string;
-    children: ReactNode;
-    className?: string;
-    rightContent?: ReactNode;
-  }) => (
-    <div
-      className={`bg-[#1A1A1A] p-6 space-y-4 border-l-4 border-primary ${className}`}
-    >
-      <div className="flex justify-between items-center">
-        <h4 className="font-extrabold uppercase tracking-widest text-primary flex items-center gap-2">
-          {title}
-        </h4>
-        {rightContent}
-      </div>
-      {children}
-    </div>
-  );
-
-  const Control = ({
-    label,
-    children,
-  }: {
-    label: string;
-    children: ReactNode;
-  }) => (
-    <div className="bg-[#333333] p-4 space-y-1">
-      <Label className="text-[10px] font-bold uppercase text-[#999999]">
-        {label}
-      </Label>
-      {children}
-    </div>
-  );
-
   return (
     <div className="space-y-6">
       <input
@@ -1532,7 +1696,7 @@ function SettingsForm(
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Section title="Media">
+        <ObsSettingsSection title="Media">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div className="flex min-h-[132px] min-w-0 flex-col overflow-hidden rounded-sm border-2 border-dashed border-outline-variant/30 bg-surface-container-lowest">
               {uploading && uploadSlot === "visual" ? (
@@ -1668,164 +1832,775 @@ function SettingsForm(
               </div>
             )}
           </div>
-        </Section>
+        </ObsSettingsSection>
 
-        <Section title="Audio">
-          <div className="space-y-4">
-            <Control label="Volume">
-              <div className="flex items-center gap-4">
-                <Slider
-                  defaultValue={[50]}
-                  max={100}
-                  step={1}
-                  className="[&_[role=slider]]:bg-primary [&_[role=slider]]:border-primary [&_[role=slider]]:rounded-full"
-                />
-                <span className="text-sm font-bold text-primary w-8 text-right">
-                  50%
-                </span>
-              </div>
-            </Control>
-            <div className="grid grid-cols-2 gap-4">
-              <Control label="On/Off">
-                <Switch className={OBS_SWITCH_ROW_CLASS} />
-              </Control>
-              <Control label="Loop">
-                <Switch className={OBS_SWITCH_ROW_CLASS} />
-              </Control>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <Control label="Fade in (ms)">
-              <Input
-                type="number"
-                defaultValue={300}
-                className="bg-transparent border-none p-0 h-6 text-sm"
-              />
-            </Control>
-            <Control label="Fade out (ms)">
-              <Input
-                type="number"
-                defaultValue={300}
-                className="bg-transparent border-none p-0 h-6 text-sm"
-              />
-            </Control>
-          </div>
-        </Section>
+        <ObsSettingsSection title="Audio">
+          <AudioStyleAnimationControls
+            disabled={savingNested || !canPersist}
+            soundSettings={soundSettings as SoundSettings | undefined}
+            onPatchSound={(patch) => void persistConfigPatch("soundSettings", patch)}
+          />
+        </ObsSettingsSection>
       </div>
 
-      <Section title="Styling & Typography">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-4">
-            <Control label="Font Family">
-              <Select>
-                <SelectTrigger className="bg-transparent border-none p-0 h-6 text-sm">
-                  <SelectValue placeholder="Space Grotesk" />
-                </SelectTrigger>
-              </Select>
-            </Control>
-            <div className="grid grid-cols-2 gap-4">
-              <Control label="Weight">
-                <Select>
-                  <SelectTrigger className="bg-transparent border-none p-0 h-6 text-sm">
-                    <SelectValue placeholder="Bold" />
-                  </SelectTrigger>
-                </Select>
-              </Control>
-              <Control label="Font Size (px)">
-                <Input
-                  type="number"
-                  defaultValue={24}
-                  className="bg-transparent border-none p-0 h-6 text-sm"
-                />
-              </Control>
-            </div>
-            <Slider
-              defaultValue={[50]}
-              max={100}
-              step={1}
-              className="[&_[role=slider]]:bg-primary [&_[role=slider]]:border-primary [&_[role=slider]]:rounded-full"
-            />
-          </div>
-          <div className="grid grid-cols-1 gap-4">
-            <Control label="Message Color">
-              <div className="w-8 h-8 bg-gray-200 border border-outline" />
-            </Control>
-            <Control label="Background Color">
-              <div className="w-8 h-8 bg-black border border-outline" />
-            </Control>
-            <Control label="Money Color">
-              <div className="w-8 h-8 bg-primary border border-outline" />
-            </Control>
-          </div>
-        </div>
-      </Section>
+      <ObsSettingsSection title="Vị trí widget">
+        <PositionControls
+          disabled={savingNested || !canPersist}
+          positionSettings={
+            configuration?.positionSettings as
+              | Record<string, unknown>
+              | undefined
+          }
+          onPatch={(patch) =>
+            void persistConfigPatch("positionSettings", patch)
+          }
+        />
+      </ObsSettingsSection>
+
+      <ObsSettingsSection title="Styling & Typography">
+        <StyleControls
+          disabled={savingNested || !canPersist}
+          styleSettings={
+            configuration?.styleSettings as Record<string, unknown> | undefined
+          }
+          onPatch={(patch) => void persistConfigPatch("styleSettings", patch)}
+        />
+      </ObsSettingsSection>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Section
+        <ObsSettingsSection
           title="Animation"
-          rightContent={<Switch className={OBS_SWITCH_ROW_CLASS} />}
+          rightContent={
+            <Switch
+              className={OBS_SWITCH_ROW_CLASS}
+              disabled={savingNested || !canPersist}
+              checked={
+                (configuration?.animationSettings as Record<string, unknown> | undefined)
+                  ?.enabled !== false
+              }
+              onCheckedChange={(c) =>
+                void persistConfigPatch("animationSettings", {
+                  enabled: c === true,
+                })
+              }
+            />
+          }
         >
-          <div className="space-y-4">
-            <Control label="Kiểu (Type)">
-              <Select>
-                <SelectTrigger className="bg-transparent border-none p-0 h-6 text-sm">
-                  <SelectValue placeholder="Slide In" />
-                </SelectTrigger>
-              </Select>
-            </Control>
-            <Control label="Hướng (Direction)">
-              <Select>
-                <SelectTrigger className="bg-transparent border-none p-0 h-6 text-sm">
-                  <SelectValue placeholder="From Left" />
-                </SelectTrigger>
-              </Select>
-            </Control>
-            <Control label="Duration (ms)">
-              <Input
-                type="number"
-                defaultValue={800}
-                className="bg-transparent border-none p-0 h-6 text-sm"
-              />
-            </Control>
-          </div>
-        </Section>
+          <AnimationControls
+            disabled={savingNested || !canPersist}
+            animationSettings={
+              configuration?.animationSettings as
+                | Record<string, unknown>
+                | undefined
+            }
+            onPatch={(patch) =>
+              void persistConfigPatch("animationSettings", patch)
+            }
+          />
+        </ObsSettingsSection>
 
-        <Section
+        <ObsSettingsSection
           title="Thời gian hiển thị"
           rightContent={
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase">Tự ẩn</span>{" "}
-              <Switch className={OBS_SWITCH_ROW_CLASS} />
+              <span className="text-xs font-bold uppercase">Tự ẩn</span>
+              <Switch
+                className={OBS_SWITCH_ROW_CLASS}
+                disabled={savingNested || !canPersist}
+                checked={
+                  (configuration?.displaySettings as Record<string, unknown> | undefined)
+                    ?.autoHide !== false
+                }
+                onCheckedChange={(c) =>
+                  void persistConfigPatch("displaySettings", {
+                    autoHide: c === true,
+                  })
+                }
+              />
             </div>
           }
         >
-          <div className="space-y-4">
-            <Control label="Display Duration (Seconds)">
-              <Input
-                type="number"
-                defaultValue={10}
-                className="bg-transparent border-none p-0 h-6 text-sm"
-              />
-            </Control>
-            <div className="grid grid-cols-2 gap-4">
-              <Control label="Fade in (ms)">
-                <Input
-                  type="number"
-                  defaultValue={400}
-                  className="bg-transparent border-none p-0 h-6 text-sm"
-                />
-              </Control>
-              <Control label="Fade out (ms)">
-                <Input
-                  type="number"
-                  defaultValue={400}
-                  className="bg-transparent border-none p-0 h-6 text-sm"
-                />
-              </Control>
-            </div>
-          </div>
-        </Section>
+          <DisplayControls
+            disabled={savingNested || !canPersist}
+            displaySettings={
+              configuration?.displaySettings as
+                | Record<string, unknown>
+                | undefined
+            }
+            onPatch={(patch) =>
+              void persistConfigPatch("displaySettings", patch)
+            }
+          />
+        </ObsSettingsSection>
       </div>
+    </div>
+  );
+}
+
+function AudioStyleAnimationControls({
+  disabled,
+  soundSettings,
+  onPatchSound,
+}: {
+  disabled: boolean;
+  soundSettings: SoundSettings | undefined;
+  onPatchSound: (patch: Record<string, unknown>) => void;
+}) {
+  const snd = soundSettings ?? {};
+  const volume = typeof snd.volume === "number" ? snd.volume : 80;
+  const fadeIn = typeof snd.fadeIn === "number" ? snd.fadeIn : 0;
+  const fadeOut = typeof snd.fadeOut === "number" ? snd.fadeOut : 0;
+  const [volumeUi, setVolumeUi] = useState(volume);
+  useEffect(() => {
+    setVolumeUi(volume);
+  }, [volume]);
+
+  const debouncedVolumePatch = useMemo(
+    () =>
+      debounce((v: number) => {
+        onPatchSound({ volume: v });
+      }, 400),
+    [onPatchSound],
+  );
+
+  return (
+    <>
+      <div className="space-y-4">
+        <ObsSettingsControl label="Volume">
+          <div className="flex items-center gap-4">
+            <Slider
+              disabled={disabled}
+              value={[volumeUi]}
+              min={0}
+              max={100}
+              step={1}
+              onValueChange={(v) => {
+                const n = v[0];
+                if (typeof n === "number") {
+                  setVolumeUi(n);
+                  debouncedVolumePatch(n);
+                }
+              }}
+              className="[&_[role=slider]]:bg-primary [&_[role=slider]]:border-primary [&_[role=slider]]:rounded-full"
+            />
+            <span className="text-sm font-bold text-primary w-10 text-right tabular-nums">
+              {volumeUi}%
+            </span>
+          </div>
+        </ObsSettingsControl>
+        <div className="grid grid-cols-2 gap-4">
+          <ObsSettingsControl label="Bật âm thanh">
+            <Switch
+              className={OBS_SWITCH_ROW_CLASS}
+              disabled={disabled}
+              checked={snd.enabled !== false}
+              onCheckedChange={(c) => onPatchSound({ enabled: c === true })}
+            />
+          </ObsSettingsControl>
+          <ObsSettingsControl label="Lặp (loop)">
+            <Switch
+              className={OBS_SWITCH_ROW_CLASS}
+              disabled={disabled}
+              checked={snd.loop === true}
+              onCheckedChange={(c) => onPatchSound({ loop: c === true })}
+            />
+          </ObsSettingsControl>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <ObsSettingsControl label="Fade in (ms)">
+          <Input
+            key={`snd-fi-${fadeIn}`}
+            type="number"
+            disabled={disabled}
+            defaultValue={fadeIn}
+            min={0}
+            onBlur={(e) => {
+              const n = Number(e.target.value);
+              if (Number.isFinite(n) && n >= 0) onPatchSound({ fadeIn: n });
+            }}
+            className="bg-transparent border-none p-0 h-6 text-sm"
+          />
+        </ObsSettingsControl>
+        <ObsSettingsControl label="Fade out (ms)">
+          <Input
+            key={`snd-fo-${fadeOut}`}
+            type="number"
+            disabled={disabled}
+            defaultValue={fadeOut}
+            min={0}
+            onBlur={(e) => {
+              const n = Number(e.target.value);
+              if (Number.isFinite(n) && n >= 0) onPatchSound({ fadeOut: n });
+            }}
+            className="bg-transparent border-none p-0 h-6 text-sm"
+          />
+        </ObsSettingsControl>
+      </div>
+    </>
+  );
+}
+
+function PositionControls({
+  disabled,
+  positionSettings,
+  onPatch,
+}: {
+  disabled: boolean;
+  positionSettings: Record<string, unknown> | undefined;
+  onPatch: (patch: Record<string, unknown>) => void;
+}) {
+  const pos = positionSettings ?? {};
+  const anchorRaw =
+    typeof pos.anchor === "string" && pos.anchor.trim()
+      ? pos.anchor.trim()
+      : "middle-center";
+  const anchor = WIDGET_ANCHOR_OPTIONS.some((o) => o.value === anchorRaw)
+    ? anchorRaw
+    : "middle-center";
+  const x = typeof pos.x === "number" ? pos.x : 0;
+  const y = typeof pos.y === "number" ? pos.y : 0;
+  const zIndex = typeof pos.zIndex === "number" ? pos.zIndex : 1000;
+  const responsive = pos.responsive !== false;
+  const mobileScale =
+    typeof pos.mobileScale === "number" ? pos.mobileScale : 0.8;
+  const [scaleUi, setScaleUi] = useState(mobileScale);
+  useEffect(() => {
+    setScaleUi(mobileScale);
+  }, [mobileScale]);
+
+  const debouncedScalePatch = useMemo(
+    () => debounce((v: number) => onPatch({ mobileScale: v }), 400),
+    [onPatch],
+  );
+
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <ObsSettingsControl label="Neo (anchor) — vị trí trên màn hình">
+        <Select
+          value={anchor}
+          onValueChange={(v) => onPatch({ anchor: v })}
+          disabled={disabled}
+        >
+          <SelectTrigger className="h-8 w-full min-w-0 max-w-full border border-outline-variant/40 bg-transparent text-sm">
+            <SelectValue placeholder="Chọn vị trí" />
+          </SelectTrigger>
+          <SelectContent className="bg-surface-container-low border-outline-variant/20 rounded-none max-h-72">
+            {WIDGET_ANCHOR_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value} className="text-xs">
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </ObsSettingsControl>
+      <ObsSettingsControl label="z-index (lớp chồng)">
+        <Input
+          key={`pos-z-${zIndex}`}
+          type="number"
+          disabled={disabled}
+          defaultValue={zIndex}
+          onBlur={(e) => {
+            const n = Number(e.target.value);
+            if (Number.isFinite(n)) onPatch({ zIndex: Math.round(n) });
+          }}
+          className="bg-transparent border border-outline-variant/30 p-2 h-9 text-sm"
+        />
+      </ObsSettingsControl>
+      <ObsSettingsControl label="Offset X (px)">
+        <Input
+          key={`pos-x-${x}`}
+          type="number"
+          disabled={disabled}
+          defaultValue={x}
+          onBlur={(e) => {
+            const n = Number(e.target.value);
+            if (Number.isFinite(n)) onPatch({ x: Math.round(n) });
+          }}
+          className="bg-transparent border border-outline-variant/30 p-2 h-9 text-sm"
+        />
+      </ObsSettingsControl>
+      <ObsSettingsControl label="Offset Y (px)">
+        <Input
+          key={`pos-y-${y}`}
+          type="number"
+          disabled={disabled}
+          defaultValue={y}
+          onBlur={(e) => {
+            const n = Number(e.target.value);
+            if (Number.isFinite(n)) onPatch({ y: Math.round(n) });
+          }}
+          className="bg-transparent border border-outline-variant/30 p-2 h-9 text-sm"
+        />
+      </ObsSettingsControl>
+      <ObsSettingsControl label="Responsive">
+        <Switch
+          className={OBS_SWITCH_ROW_CLASS}
+          disabled={disabled}
+          checked={responsive}
+          onCheckedChange={(c) => onPatch({ responsive: c === true })}
+        />
+      </ObsSettingsControl>
+      <ObsSettingsControl label={`Tỷ lệ mobile (${Math.round(scaleUi * 100)}%)`}>
+        <div className="flex items-center gap-3">
+          <Slider
+            disabled={disabled}
+            value={[scaleUi]}
+            min={0.5}
+            max={1.5}
+            step={0.05}
+            onValueChange={(v) => {
+              const n = v[0];
+              if (typeof n === "number") {
+                setScaleUi(n);
+                debouncedScalePatch(n);
+              }
+            }}
+            className="[&_[role=slider]]:bg-primary [&_[role=slider]]:border-primary [&_[role=slider]]:rounded-full"
+          />
+        </div>
+      </ObsSettingsControl>
+    </div>
+  );
+}
+
+function ObsStyleColorField({
+  label,
+  disabled,
+  cssValue,
+  fallbackHex,
+  onPick,
+}: {
+  label: string;
+  disabled: boolean;
+  cssValue: string;
+  /** Màu hex khi tắt «Trong suốt» (color picker không hỗ trợ alpha). */
+  fallbackHex: string;
+  onPick: (cssColor: string) => void;
+}) {
+  const transparent = isTransparentCss(cssValue);
+  const pickerValue = transparent
+    ? fallbackHex
+    : cssColorToHex(cssValue);
+
+  return (
+    <ObsSettingsControl label={label}>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-3">
+          <input
+            type="color"
+            disabled={disabled || transparent}
+            value={pickerValue}
+            onChange={(e) => onPick(e.target.value)}
+            className="h-9 w-12 shrink-0 cursor-pointer rounded border border-outline-variant/50 bg-[#252525] p-0.5 disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-color-swatch-wrapper]:p-px [&::-webkit-color-swatch]:rounded-sm [&::-webkit-color-swatch]:border-0 [&::-moz-color-swatch]:rounded-sm [&::-moz-color-swatch]:border-0"
+            aria-label={`Chọn ${label}`}
+          />
+          <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded border border-outline">
+            <div
+              className="pointer-events-none absolute inset-0 opacity-50"
+              style={{
+                backgroundImage:
+                  "repeating-conic-gradient(#737373 0% 25%, #3f3f3f 0% 50%)",
+                backgroundSize: "6px 6px",
+              }}
+            />
+            <div
+              className="absolute inset-0"
+              style={{ backgroundColor: cssValue }}
+            />
+          </div>
+          <span
+            className="min-w-0 flex-1 truncate font-mono text-xs text-outline"
+            title={cssValue}
+          >
+            {transparent ? "transparent" : cssValue}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch
+            className={OBS_SWITCH_ROW_CLASS}
+            disabled={disabled}
+            checked={transparent}
+            onCheckedChange={(c) =>
+              onPick(c === true ? "transparent" : fallbackHex)
+            }
+          />
+          <span className="text-[10px] font-bold uppercase tracking-wide text-[#999999]">
+            Trong suốt
+          </span>
+        </div>
+      </div>
+    </ObsSettingsControl>
+  );
+}
+
+function StyleControls({
+  disabled,
+  styleSettings,
+  onPatch,
+}: {
+  disabled: boolean;
+  styleSettings: Record<string, unknown> | undefined;
+  onPatch: (patch: Record<string, unknown>) => void;
+}) {
+  const st = styleSettings ?? {};
+  const fontFamily =
+    typeof st.fontFamily === "string"
+      ? st.fontFamily
+      : "Inter, -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif";
+  const fontWeight =
+    typeof st.fontWeight === "string" ? st.fontWeight : "normal";
+  const fontSize = typeof st.fontSize === "number" ? st.fontSize : 16;
+  const textColor =
+    typeof st.textColor === "string" ? st.textColor : "#ffffff";
+  const backgroundColor =
+    typeof st.backgroundColor === "string"
+      ? st.backgroundColor
+      : "#1a1a1a";
+  const accentColor =
+    typeof st.accentColor === "string" ? st.accentColor : "#F6BD2A";
+  const borderColor =
+    typeof st.borderColor === "string" ? st.borderColor : "#333333";
+  const textShadow = st.textShadow === true;
+
+  return (
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+      <div className="space-y-4">
+        <ObsSettingsControl label="Font family">
+          <Input
+            key={`ff-${fontFamily.slice(0, 40)}`}
+            disabled={disabled}
+            defaultValue={fontFamily}
+            onBlur={(e) => onPatch({ fontFamily: e.target.value })}
+            className="min-w-0 bg-transparent border border-outline-variant/30 p-2 h-9 text-xs"
+          />
+        </ObsSettingsControl>
+        <div className="grid grid-cols-2 gap-4">
+          <ObsSettingsControl label="Weight">
+            <Select
+              value={fontWeight}
+              onValueChange={(v) => onPatch({ fontWeight: v })}
+              disabled={disabled}
+            >
+              <SelectTrigger className="h-8 w-full min-w-0 border border-outline-variant/40 bg-transparent text-sm">
+                <SelectValue placeholder="Weight" />
+              </SelectTrigger>
+              <SelectContent className="bg-surface-container-low border-outline-variant/20 rounded-none">
+                {FONT_WEIGHT_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value} className="text-xs">
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </ObsSettingsControl>
+          <ObsSettingsControl label="Font size (px)">
+            <Input
+              key={`fs-${fontSize}`}
+              type="number"
+              disabled={disabled}
+              defaultValue={fontSize}
+              min={8}
+              max={96}
+              onBlur={(e) => {
+                const n = Number(e.target.value);
+                if (Number.isFinite(n) && n >= 8 && n <= 96)
+                  onPatch({ fontSize: Math.round(n) });
+              }}
+              className="bg-transparent border border-outline-variant/30 p-2 h-9 text-sm"
+            />
+          </ObsSettingsControl>
+        </div>
+        <ObsSettingsControl label="Đổ bóng chữ">
+          <Switch
+            className={OBS_SWITCH_ROW_CLASS}
+            disabled={disabled}
+            checked={textShadow}
+            onCheckedChange={(c) => onPatch({ textShadow: c === true })}
+          />
+        </ObsSettingsControl>
+      </div>
+      <div className="grid grid-cols-1 gap-4">
+        <ObsStyleColorField
+          label="Màu chữ (text)"
+          disabled={disabled}
+          cssValue={textColor}
+          fallbackHex="#ffffff"
+          onPick={(v) => onPatch({ textColor: v })}
+        />
+        <ObsStyleColorField
+          label="Nền (background)"
+          disabled={disabled}
+          cssValue={backgroundColor}
+          fallbackHex="#1a1a1a"
+          onPick={(v) => onPatch({ backgroundColor: v })}
+        />
+        <ObsStyleColorField
+          label="Màu nhấn / số tiền (accent)"
+          disabled={disabled}
+          cssValue={accentColor}
+          fallbackHex="#F6BD2A"
+          onPick={(v) => onPatch({ accentColor: v })}
+        />
+        <ObsStyleColorField
+          label="Viền (border color)"
+          disabled={disabled}
+          cssValue={borderColor}
+          fallbackHex="#333333"
+          onPick={(v) => onPatch({ borderColor: v })}
+        />
+      </div>
+    </div>
+  );
+}
+
+function AnimationControls({
+  disabled,
+  animationSettings,
+  onPatch,
+}: {
+  disabled: boolean;
+  animationSettings: Record<string, unknown> | undefined;
+  onPatch: (patch: Record<string, unknown>) => void;
+}) {
+  const a = animationSettings ?? {};
+  const animationType =
+    typeof a.animationType === "string" ? a.animationType : "fade";
+  const direction =
+    typeof a.direction === "string" ? a.direction : "bottom";
+  const duration = typeof a.duration === "number" ? a.duration : 500;
+  const easing = typeof a.easing === "string" ? a.easing : "ease-out";
+  const zoomScale = typeof a.zoomScale === "number" ? a.zoomScale : 1.2;
+  const bounceIntensity =
+    typeof a.bounceIntensity === "number" ? a.bounceIntensity : 20;
+
+  return (
+    <div className="space-y-4">
+      <ObsSettingsControl label="Kiểu">
+        <Select
+          value={animationType}
+          onValueChange={(v) => onPatch({ animationType: v })}
+          disabled={disabled}
+        >
+          <SelectTrigger className="h-8 w-full min-w-0 border border-outline-variant/40 bg-transparent text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="bg-surface-container-low border-outline-variant/20 rounded-none">
+            {ANIMATION_TYPES.map((o) => (
+              <SelectItem key={o.value} value={o.value} className="text-xs">
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </ObsSettingsControl>
+      <ObsSettingsControl label="Hướng">
+        <Select
+          value={direction}
+          onValueChange={(v) => onPatch({ direction: v })}
+          disabled={disabled}
+        >
+          <SelectTrigger className="h-8 w-full min-w-0 border border-outline-variant/40 bg-transparent text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="bg-surface-container-low border-outline-variant/20 rounded-none">
+            {ANIMATION_DIRECTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value} className="text-xs">
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </ObsSettingsControl>
+      <ObsSettingsControl label="Easing">
+        <Select
+          value={easing}
+          onValueChange={(v) => onPatch({ easing: v })}
+          disabled={disabled}
+        >
+          <SelectTrigger className="h-8 w-full min-w-0 border border-outline-variant/40 bg-transparent text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="bg-surface-container-low border-outline-variant/20 rounded-none">
+            {EASING_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value} className="text-xs">
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </ObsSettingsControl>
+      <ObsSettingsControl label="Duration (ms)">
+        <Input
+          key={`anim-dur-${duration}`}
+          type="number"
+          disabled={disabled}
+          defaultValue={duration}
+          min={50}
+          max={10000}
+          onBlur={(e) => {
+            const n = Number(e.target.value);
+            if (Number.isFinite(n) && n >= 50 && n <= 10000)
+              onPatch({ duration: Math.round(n) });
+          }}
+          className="bg-transparent border border-outline-variant/30 p-2 h-9 text-sm"
+        />
+      </ObsSettingsControl>
+      {(animationType === "zoom" || animationType === "bounce") && (
+        <div className="grid grid-cols-2 gap-4">
+          {animationType === "zoom" && (
+            <ObsSettingsControl label="Zoom scale">
+              <Input
+                key={`zoom-${zoomScale}`}
+                type="number"
+                disabled={disabled}
+                defaultValue={zoomScale}
+                step={0.05}
+                min={1}
+                max={2}
+                onBlur={(e) => {
+                  const n = Number(e.target.value);
+                  if (Number.isFinite(n) && n >= 1 && n <= 2)
+                    onPatch({ zoomScale: n });
+                }}
+                className="bg-transparent border border-outline-variant/30 p-2 h-9 text-sm"
+              />
+            </ObsSettingsControl>
+          )}
+          {animationType === "bounce" && (
+            <ObsSettingsControl label="Bounce intensity">
+              <Input
+                key={`bounce-${bounceIntensity}`}
+                type="number"
+                disabled={disabled}
+                defaultValue={bounceIntensity}
+                min={0}
+                max={100}
+                onBlur={(e) => {
+                  const n = Number(e.target.value);
+                  if (Number.isFinite(n) && n >= 0 && n <= 100)
+                    onPatch({ bounceIntensity: Math.round(n) });
+                }}
+                className="bg-transparent border border-outline-variant/30 p-2 h-9 text-sm"
+              />
+            </ObsSettingsControl>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DisplayControls({
+  disabled,
+  displaySettings,
+  onPatch,
+}: {
+  disabled: boolean;
+  displaySettings: Record<string, unknown> | undefined;
+  onPatch: (patch: Record<string, unknown>) => void;
+}) {
+  const d = displaySettings ?? {};
+  const durationMs = typeof d.duration === "number" ? d.duration : 5000;
+  const fadeInDuration =
+    typeof d.fadeInDuration === "number" ? d.fadeInDuration : 300;
+  const fadeOutDuration =
+    typeof d.fadeOutDuration === "number" ? d.fadeOutDuration : 300;
+  const showProgress = d.showProgress === true;
+  const progressColor =
+    typeof d.progressColor === "string" ? d.progressColor : "#00ff00";
+  const progressHeight =
+    typeof d.progressHeight === "number" ? d.progressHeight : 3;
+
+  return (
+    <div className="space-y-4">
+      <ObsSettingsControl label="Thời gian hiển thị (ms)">
+        <Input
+          key={`disp-dur-${durationMs}`}
+          type="number"
+          disabled={disabled}
+          defaultValue={durationMs}
+          min={500}
+          max={120000}
+          onBlur={(e) => {
+            const n = Number(e.target.value);
+            if (Number.isFinite(n) && n >= 500 && n <= 120000)
+              onPatch({ duration: Math.round(n) });
+          }}
+          className="bg-transparent border border-outline-variant/30 p-2 h-9 text-sm"
+        />
+      </ObsSettingsControl>
+      <div className="grid grid-cols-2 gap-4">
+        <ObsSettingsControl label="Fade in overlay (ms)">
+          <Input
+            key={`disp-fi-${fadeInDuration}`}
+            type="number"
+            disabled={disabled}
+            defaultValue={fadeInDuration}
+            min={0}
+            max={5000}
+            onBlur={(e) => {
+              const n = Number(e.target.value);
+              if (Number.isFinite(n) && n >= 0 && n <= 5000)
+                onPatch({ fadeInDuration: Math.round(n) });
+            }}
+            className="bg-transparent border border-outline-variant/30 p-2 h-9 text-sm"
+          />
+        </ObsSettingsControl>
+        <ObsSettingsControl label="Fade out overlay (ms)">
+          <Input
+            key={`disp-fo-${fadeOutDuration}`}
+            type="number"
+            disabled={disabled}
+            defaultValue={fadeOutDuration}
+            min={0}
+            max={5000}
+            onBlur={(e) => {
+              const n = Number(e.target.value);
+              if (Number.isFinite(n) && n >= 0 && n <= 5000)
+                onPatch({ fadeOutDuration: Math.round(n) });
+            }}
+            className="bg-transparent border border-outline-variant/30 p-2 h-9 text-sm"
+          />
+        </ObsSettingsControl>
+      </div>
+      <ObsSettingsControl label="Thanh tiến trình">
+        <Switch
+          className={OBS_SWITCH_ROW_CLASS}
+          disabled={disabled}
+          checked={showProgress}
+          onCheckedChange={(c) => onPatch({ showProgress: c === true })}
+        />
+      </ObsSettingsControl>
+      {showProgress && (
+        <div className="grid grid-cols-2 gap-4">
+          <ObsSettingsControl label="Màu thanh">
+            <Input
+              key={`prog-c-${progressColor}`}
+              disabled={disabled}
+              defaultValue={progressColor}
+              onBlur={(e) => onPatch({ progressColor: e.target.value })}
+              className="bg-transparent border border-outline-variant/30 p-2 h-9 text-xs font-mono"
+            />
+          </ObsSettingsControl>
+          <ObsSettingsControl label="Chiều cao (px)">
+            <Input
+              key={`prog-h-${progressHeight}`}
+              type="number"
+              disabled={disabled}
+              defaultValue={progressHeight}
+              min={1}
+              max={24}
+              onBlur={(e) => {
+                const n = Number(e.target.value);
+                if (Number.isFinite(n) && n >= 1 && n <= 24)
+                  onPatch({ progressHeight: Math.round(n) });
+              }}
+              className="bg-transparent border border-outline-variant/30 p-2 h-9 text-sm"
+            />
+          </ObsSettingsControl>
+        </div>
+      )}
     </div>
   );
 }
