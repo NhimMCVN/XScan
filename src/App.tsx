@@ -20,16 +20,11 @@ import { isStreamerRole } from "./utils/userRole";
 
 export default function App() {
   const dispatch = useAppDispatch();
-  const isAuthenticated = useSelector(
-    (s: RootState) => s.auth.isAuthenticated,
-  );
+  const isAuthenticated = useSelector((s: RootState) => s.auth.isAuthenticated);
   const userRole = useSelector((s: RootState) => s.auth.user?.role);
   const [currentView, setCurrentView] = useState("MATCHES");
-<<<<<<< HEAD
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [role, setRole] = useState<"USER" | "STREAMER">("USER");
-=======
->>>>>>> 92deedb (add redux and login register)
 
   useEffect(() => {
     const handleNavigate = (e: Event) => {
@@ -53,11 +48,21 @@ export default function App() {
     <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
       <TopNav />
       <div className="flex flex-1 overflow-hidden">
-        {currentView !== "STREAMERS" && currentView !== "PROFILE" && currentView !== "BECOME_STREAMER" && currentView !== "STREAMER_CHALLENGES" && currentView !== "STREAMER_DONATIONS" && currentView !== "DONATION_LINKS" && currentView !== "OBS_SETTINGS" && <Sidebar />}
+        {currentView !== "STREAMERS" &&
+          currentView !== "PROFILE" &&
+          currentView !== "BECOME_STREAMER" &&
+          currentView !== "STREAMER_CHALLENGES" &&
+          currentView !== "STREAMER_DONATIONS" &&
+          currentView !== "DONATION_LINKS" &&
+          currentView !== "OBS_SETTINGS" && <Sidebar />}
         {currentView === "STREAMERS" ? (
           <StreamersView />
         ) : currentView === "PROFILE" ? (
-          role === "USER" ? <UserDashboardView /> : <StreamerDashboardView />
+          role === "USER" ? (
+            <UserDashboardView />
+          ) : (
+            <StreamerDashboardView />
+          )
         ) : currentView === "BECOME_STREAMER" ? (
           <StreamerRegistrationView />
         ) : currentView === "STREAMER_CHALLENGES" ? (
