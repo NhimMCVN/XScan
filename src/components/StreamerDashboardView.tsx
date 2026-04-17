@@ -1296,9 +1296,11 @@ export function StreamerDashboardView() {
             {/* OBS Settings */}
             <div
               className="bg-surface-container-low border border-outline-variant/10 p-4 rounded-[12px] cursor-pointer hover:border-primary/30 transition-all flex items-center justify-between group"
-              onClick={() => {
-                /* Handle OBS Settings */
-              }}
+              onClick={() =>
+                window.dispatchEvent(
+                  new CustomEvent("navigate", { detail: "OBS_SETTINGS" }),
+                )
+              }
             >
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-[10px] bg-primary/10 flex items-center justify-center text-primary">

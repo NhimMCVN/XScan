@@ -105,3 +105,15 @@ export function parseObsWidgetAlertPath(
     return { streamerId: m[1], token: m[2] };
   }
 }
+
+/**
+ * Query trên URL trang widget: `?donationLevelId=` hoặc `?levelId=` (khớp OBS settings).
+ */
+export function parseWidgetDonationLevelQuery(search: string): string | undefined {
+  const sp = new URLSearchParams(
+    search.startsWith("?") ? search : `?${search}`,
+  );
+  const raw = sp.get("donationLevelId") ?? sp.get("levelId");
+  const t = raw?.trim();
+  return t || undefined;
+}

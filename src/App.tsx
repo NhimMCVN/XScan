@@ -23,6 +23,7 @@ import {
   getInitialViewFromLocation,
   parseDonationLinkCustomUrl,
   parseObsWidgetAlertPath,
+  parseWidgetDonationLevelQuery,
   pathFromView,
   pathsEqual,
   viewFromPathname,
@@ -78,6 +79,9 @@ export default function App() {
         <WidgetAlertView
           streamerId={obsPreview.streamerId}
           token={obsPreview.token}
+          donationLevelId={parseWidgetDonationLevelQuery(
+            window.location.search,
+          )}
         />
       );
     }
