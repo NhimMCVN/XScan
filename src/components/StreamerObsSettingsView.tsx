@@ -1,128 +1,642 @@
-import { useState, type ReactNode } from "react";
-import { 
-  Settings, Plus, Pencil, Trash2, Copy, Upload, Volume2, 
-  Repeat, Zap, Eye, RefreshCw, ChevronDown, ChevronUp, Info
+import {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+  type ReactNode,
+  type ChangeEvent,
+} from "react";
+import {
+  Settings,
+  Plus,
+  Pencil,
+  Trash2,
+  Copy,
+  Upload,
+  Eye,
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
 } from "lucide-react";
+import type { FetchBaseQueryError } from "@reduxjs/toolkit/query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { API_URL } from "@/src/constants";
+import { useGetProfileQuery } from "@/src/redux/queries/user.api";
+import {
+  useGetMySettingsQuery,
+  useCreateSettingsMutation,
+  useGetDonationLevelsQuery,
+  useAddDonationLevelMutation,
+  useUpdateDonationLevelMutation,
+  useDeleteDonationLevelMutation,
+  useRegenerateTokenMutation,
+  useUploadMediaMutation,
+  useDeleteMediaMutation,
+  type DonationLevelDTO,
+  type ApiResponse,
+  type MediaUploadResponse,
+} from "@/src/redux/queries/obs.api";
+
+const UNLIMITED_MAX_SENTINEL = 9e15;
+
+function absoluteApiUrl(maybe: string | undefined): string {
+  if (!maybe) return "";
+  const t = String(maybe).trim();
+  if (!t) return "";
+  if (t.startsWith("http://") || t.startsWith("https://")) return t;
+  return `${API_URL}${t.startsWith("/") ? "" : "/"}${t}`;
+}
+
+function getMutationError(e: unknown): string {
+  if (!e || typeof e !== "object") return "Có lỗi xảy ra.";
+  const x = e as Record<string, unknown>;
+  const data = x.data;
+  if (data && typeof data === "object") {
+    const d = data as Record<string, unknown>;
+    if (typeof d.message === "string" && d.message) return d.message;
+    const err = d.error;
+    if (err && typeof err === "object") {
+      const m = (err as Record<string, unknown>).message;
+      if (typeof m === "string" && m) return m;
+    }
+  }
+  if (typeof x.error === "string" && x.error) return x.error;
+  return "Có lỗi xảy ra.";
+}
+
+function parseDonationLevelsPayload(
+  res: ApiResponse<{ donationLevels?: DonationLevelDTO[] }> | undefined,
+): DonationLevelDTO[] {
+  if (!res?.success || res.data == null) return [];
+  const inner = res.data as Record<string, unknown>;
+  if (Array.isArray(inner)) return inner as DonationLevelDTO[];
+  const arr = inner.donationLevels ?? inner.items ?? inner.data;
+  if (Array.isArray(arr)) return arr as DonationLevelDTO[];
+  return [];
+}
+
+function donationLevelRouteId(d: DonationLevelDTO): string {
+  return String(
+    d.levelId ??
+      (d as { id?: string }).id ??
+      (d as { _id?: string })._id ??
+      "",
+  );
+}
+
+function maxAmountToUi(maxAmount: number | undefined): number {
+  if (maxAmount == null || Number.isNaN(maxAmount)) return UNLIMITED_MAX_SENTINEL;
+  if (maxAmount >= UNLIMITED_MAX_SENTINEL / 10) return Infinity;
+  return maxAmount;
+}
+
+function uiMaxToApiMax(maxUi: number, unlimited: boolean): number {
+  if (unlimited || maxUi === Infinity) return UNLIMITED_MAX_SENTINEL;
+  return maxUi;
+}
+
+type UiDonationLevel = {
+  routeId: string;
+  listKey: string;
+  persisted: boolean;
+  dto: DonationLevelDTO;
+  name: string;
+  min: number;
+  max: number;
+  active: boolean;
+  isOpen: boolean;
+};
 
 export function StreamerObsSettingsView() {
-  const [levels, setLevels] = useState([
-    { id: 1, name: "Default Level", min: 100000, max: 5000000, active: true, isOpen: false },
+  const { data: profileRes, isLoading: profileLoading } = useGetProfileQuery();
+  const profile = profileRes?.success ? profileRes.data : undefined;
+  const streamerId =
+    profile?._id != null ? String(profile._id) : undefined;
+
+  const {
+    data: settingsRes,
+    isLoading: settingsLoading,
+    isFetching: settingsFetching,
+    isError: settingsIsError,
+    error: settingsError,
+    refetch: refetchSettings,
+  } = useGetMySettingsQuery(undefined, {
+    skip: profileLoading || !streamerId,
+  });
+
+  const settings = settingsRes?.success ? settingsRes.data : undefined;
+  const widgetUrlResolved = absoluteApiUrl(
+    typeof settings?.widgetUrl === "string"
+      ? settings.widgetUrl
+      : undefined,
+  );
+
+  const [createSettings, { isLoading: creatingSettings }] =
+    useCreateSettingsMutation();
+  const [regenerateToken, { isLoading: regenerating }] =
+    useRegenerateTokenMutation();
+  const [copied, setCopied] = useState(false);
+
+  const [createOnce404, setCreateOnce404] = useState(false);
+
+  useEffect(() => {
+    if (!streamerId || createOnce404 || !settingsIsError || !settingsError)
+      return;
+    const err = settingsError as FetchBaseQueryError;
+    const status = err.status;
+    if (status === 404) {
+      setCreateOnce404(true);
+      void (async () => {
+        try {
+          await createSettings({ streamerId }).unwrap();
+          await refetchSettings();
+        } catch {
+          setCreateOnce404(false);
+        }
+      })();
+    }
+  }, [
+    streamerId,
+    createOnce404,
+    settingsIsError,
+    settingsError,
+    createSettings,
+    refetchSettings,
   ]);
+
+  const { data: levelsRes, isLoading: levelsLoading } =
+    useGetDonationLevelsQuery(undefined, {
+      skip: profileLoading || !streamerId,
+    });
+
+  const apiLevels = useMemo(
+    () => parseDonationLevelsPayload(levelsRes),
+    [levelsRes],
+  );
+
+  const [openByRouteId, setOpenByRouteId] = useState<Record<string, boolean>>(
+    {},
+  );
+
+  const levels: UiDonationLevel[] = useMemo(
+    () =>
+      apiLevels.map((dto, idx) => {
+        const routeId = donationLevelRouteId(dto);
+        const persisted = Boolean(routeId);
+        const listKey = routeId || `pending-${idx}-${dto.levelName}-${dto.minAmount}`;
+        const min = Number(dto.minAmount) || 0;
+        const max = maxAmountToUi(
+          dto.maxAmount != null ? Number(dto.maxAmount) : undefined,
+        );
+        return {
+          routeId,
+          listKey,
+          persisted,
+          dto,
+          name: dto.levelName || "Mức",
+          min,
+          max,
+          active: dto.isEnabled !== false,
+          isOpen: openByRouteId[listKey] ?? false,
+        };
+      }),
+    [apiLevels, openByRouteId],
+  );
+
+  const toggleLevelOpen = (listKey: string) => {
+    setOpenByRouteId((m) => ({ ...m, [listKey]: !m[listKey] }));
+  };
+
+  const [addLevel] = useAddDonationLevelMutation();
+  const [updateLevel] = useUpdateDonationLevelMutation();
+  const [deleteLevelMut] = useDeleteDonationLevelMutation();
+
   const [isAddLevelOpen, setIsAddLevelOpen] = useState(false);
+  const [addName, setAddName] = useState("");
+  const [addMin, setAddMin] = useState("");
+  const [addMax, setAddMax] = useState("");
+  const [addUnlimited, setAddUnlimited] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [addSaving, setAddSaving] = useState(false);
 
-  const toggleLevelOpen = (id: number) => {
-    setLevels(levels.map(l => l.id === id ? { ...l, isOpen: !l.isOpen } : l));
-  };
-
-  const toggleLevelActive = (id: number) => {
-    setLevels(levels.map(l => l.id === id ? { ...l, active: !l.active } : l));
-  };
-
-  const cloneLevel = (id: number) => {
-    const levelToClone = levels.find(l => l.id === id);
-    if (levelToClone) {
-      const newLevel = { ...levelToClone, id: Date.now(), name: `${levelToClone.name} (Copy)` };
-      setLevels([...levels, newLevel]);
+  const toggleLevelActive = async (routeId: string, next: boolean) => {
+    if (!routeId) return;
+    try {
+      await updateLevel({
+        levelId: routeId,
+        body: { isEnabled: next },
+      }).unwrap();
+    } catch (e) {
+      console.warn(getMutationError(e));
     }
   };
 
-  const deleteLevel = (id: number) => {
-    setLevels(levels.filter(l => l.id !== id));
-    setIsDeleteDialogOpen(false);
+  const cloneLevel = async (routeId: string) => {
+    const src = apiLevels.find((d) => donationLevelRouteId(d) === routeId);
+    if (!src) return;
+    try {
+      await addLevel({
+        levelName: `${src.levelName || "Mức"} (Copy)`,
+        minAmount: Number(src.minAmount) || 0,
+        maxAmount:
+          src.maxAmount != null
+            ? Number(src.maxAmount)
+            : UNLIMITED_MAX_SENTINEL,
+        currency: src.currency || "VND",
+        isEnabled: src.isEnabled !== false,
+        configuration: src.configuration,
+      }).unwrap();
+    } catch (e) {
+      console.warn(getMutationError(e));
+    }
   };
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [levelToDelete, setLevelToDelete] = useState<number | null>(null);
+  const [levelToDeleteRouteId, setLevelToDeleteRouteId] = useState<
+    string | null
+  >(null);
   const [isEditLevelOpen, setIsEditLevelOpen] = useState(false);
-  const [editingLevel, setEditingLevel] = useState<any>(null);
+  const [editingRouteId, setEditingRouteId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editMin, setEditMin] = useState("");
+  const [editMax, setEditMax] = useState("");
+  const [editUnlimited, setEditUnlimited] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
 
-  const openEditLevel = (level: any) => {
-    setEditingLevel(level);
+  const openEditLevel = (l: UiDonationLevel) => {
+    setEditingRouteId(l.routeId);
+    setEditName(l.name);
+    setEditMin(String(l.min));
+    setEditMax(l.max === Infinity ? "" : String(l.max));
+    setEditUnlimited(l.max === Infinity);
+    setEditError(null);
     setIsEditLevelOpen(true);
   };
 
-  const saveEditLevel = () => {
-    // Logic to save edit would go here
-    setIsEditLevelOpen(false);
-    setEditingLevel(null);
+  const saveEditLevel = async () => {
+    if (!editingRouteId) return;
+    const minN = Number(editMin.replace(/\s/g, ""));
+    const maxN = Number(editMax.replace(/\s/g, ""));
+    if (!editName.trim()) {
+      setEditError("Nhập tên mức.");
+      return;
+    }
+    if (Number.isNaN(minN) || minN < 0) {
+      setEditError("Số tiền tối thiểu không hợp lệ.");
+      return;
+    }
+    if (!editUnlimited && (Number.isNaN(maxN) || maxN < minN)) {
+      setEditError("Số tiền tối đa phải ≥ tối thiểu.");
+      return;
+    }
+    setEditSaving(true);
+    setEditError(null);
+    try {
+      await updateLevel({
+        levelId: editingRouteId,
+        body: {
+          levelName: editName.trim(),
+          minAmount: minN,
+          maxAmount: uiMaxToApiMax(maxN, editUnlimited),
+          currency: "VND",
+        },
+      }).unwrap();
+      setIsEditLevelOpen(false);
+      setEditingRouteId(null);
+    } catch (e) {
+      setEditError(getMutationError(e));
+    } finally {
+      setEditSaving(false);
+    }
   };
+
+  const deleteLevel = async () => {
+    if (!levelToDeleteRouteId) return;
+    try {
+      await deleteLevelMut(levelToDeleteRouteId).unwrap();
+      setIsDeleteDialogOpen(false);
+      setLevelToDeleteRouteId(null);
+    } catch (e) {
+      console.warn(getMutationError(e));
+    }
+  };
+
+  const submitAddLevel = async () => {
+    const minN = Number(addMin.replace(/\s/g, ""));
+    const maxN = Number(addMax.replace(/\s/g, ""));
+    if (!addName.trim()) {
+      setAddError("Nhập tên mức.");
+      return;
+    }
+    if (Number.isNaN(minN) || minN < 0) {
+      setAddError("Số tiền tối thiểu không hợp lệ.");
+      return;
+    }
+    if (!addUnlimited && (Number.isNaN(maxN) || maxN < minN)) {
+      setAddError("Số tiền tối đa phải ≥ tối thiểu.");
+      return;
+    }
+    setAddSaving(true);
+    setAddError(null);
+    try {
+      await addLevel({
+        levelName: addName.trim(),
+        minAmount: minN,
+        maxAmount: uiMaxToApiMax(maxN, addUnlimited),
+        currency: "VND",
+        isEnabled: true,
+      }).unwrap();
+      setIsAddLevelOpen(false);
+      setAddName("");
+      setAddMin("");
+      setAddMax("");
+      setAddUnlimited(false);
+    } catch (e) {
+      setAddError(getMutationError(e));
+    } finally {
+      setAddSaving(false);
+    }
+  };
+
+  const copyWidgetUrl = useCallback(async () => {
+    if (!widgetUrlResolved) return;
+    try {
+      await navigator.clipboard.writeText(widgetUrlResolved);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      console.warn("Không copy được URL.");
+    }
+  }, [widgetUrlResolved]);
+
+  const onRegenerateToken = async () => {
+    try {
+      await regenerateToken().unwrap();
+      await refetchSettings();
+    } catch (e) {
+      console.warn(getMutationError(e));
+    }
+  };
+
+  const pageBlocking =
+    profileLoading ||
+    creatingSettings ||
+    (Boolean(streamerId) && settingsLoading && !settingsIsError);
+
+  const settingsErrMsg = settingsIsError
+    ? (() => {
+        const err = settingsError as FetchBaseQueryError;
+        if (err.status === 404) return null;
+        const data = err.data as Record<string, unknown> | undefined;
+        const msg =
+          data &&
+          typeof data === "object" &&
+          typeof data.message === "string"
+            ? data.message
+            : null;
+        return msg || "Không tải được cấu hình OBS.";
+      })()
+    : null;
+
+  const isWidgetActive = settings?.isActive !== false;
 
   return (
     <div className="flex-1 flex flex-col bg-surface-container-lowest relative overflow-hidden">
       <div className="scanline" />
-      
+
+      {pageBlocking && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/70">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        </div>
+      )}
+
       <div className="p-6 border-b border-outline-variant/10 bg-surface-container-low/30">
         <h2 className="text-2xl font-bold uppercase tracking-widest text-foreground italic flex items-center gap-3">
           <Settings className="w-8 h-8 text-primary" />
           CẤU HÌNH OBS
         </h2>
-        <p className="text-xs text-outline mt-1">WIDGET ALERT, MEDIA VÀ ÂM THANH CHO STREAM</p>
+        <p className="text-xs text-outline mt-1">
+          WIDGET ALERT, MEDIA VÀ ÂM THANH CHO STREAM
+        </p>
       </div>
 
       <div className="flex-1 p-8 overflow-y-auto space-y-6">
+        {!profileLoading && !streamerId && (
+          <p className="text-sm text-destructive">
+            Không xác định được tài khoản streamer. Vui lòng đăng nhập lại hoặc
+            hoàn tất hồ sơ.
+          </p>
+        )}
+
+        {settingsErrMsg && (
+          <p className="text-sm text-destructive">{settingsErrMsg}</p>
+        )}
+
         <Card className="bg-surface-container-low border-outline-variant/20 rounded-none">
           <CardContent className="p-6 space-y-4">
             <div className="flex justify-between items-start">
               <div>
-                <h3 className="font-bold uppercase tracking-widest">WIDGET URL</h3>
-                <p className="text-xs text-outline">Dán địa chỉ này vào OBS → Browser Source.</p>
+                <h3 className="font-bold uppercase tracking-widest">
+                  WIDGET URL
+                </h3>
+                <p className="text-xs text-outline">
+                  Dán địa chỉ này vào OBS → Browser Source.
+                </p>
               </div>
-              <div className="flex gap-2">
-                <Badge className="bg-primary/10 text-primary border-none rounded-none">HOẠT ĐỘNG</Badge>
-                <Button variant="outline" className="rounded-none"><Eye className="w-4 h-4 mr-2" /> Xem widget</Button>
-                <Button variant="outline" className="rounded-none"><RefreshCw className="w-4 h-4 mr-2" /> Token mới</Button>
+              <div className="flex gap-2 flex-wrap justify-end">
+                <Badge
+                  className={
+                    isWidgetActive
+                      ? "bg-primary/10 text-primary border-none rounded-none"
+                      : "bg-muted text-muted-foreground border-none rounded-none"
+                  }
+                >
+                  {isWidgetActive ? "HOẠT ĐỘNG" : "TẮT"}
+                </Badge>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-none"
+                  disabled={!widgetUrlResolved}
+                  onClick={() => {
+                    if (widgetUrlResolved)
+                      window.open(widgetUrlResolved, "_blank", "noreferrer");
+                  }}
+                >
+                  <Eye className="w-4 h-4 mr-2" /> Xem widget
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-none"
+                  disabled={regenerating || settingsFetching}
+                  onClick={() => void onRegenerateToken()}
+                >
+                  {regenerating ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                  )}
+                  Token mới
+                </Button>
               </div>
             </div>
             <div className="flex gap-2">
-              <Input readOnly value="*/api/widget-public/alert/873d...1843de25825c8ba8b8ff10b5356911" className="bg-surface-container-highest/30 border-outline-variant/20 rounded-none font-mono" />
-              <Button variant="outline" className="rounded-none"><Copy className="w-4 h-4" /></Button>
+              <Input
+                readOnly
+                value={widgetUrlResolved || "—"}
+                className="bg-surface-container-highest/30 border-outline-variant/20 rounded-none font-mono text-xs"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-none shrink-0"
+                disabled={!widgetUrlResolved}
+                onClick={() => void copyWidgetUrl()}
+              >
+                {copied ? (
+                  <CheckMini />
+                ) : (
+                  <Copy className="w-4 h-4" />
+                )}
+              </Button>
             </div>
           </CardContent>
         </Card>
 
         <div className="flex justify-between items-center">
           <div>
-            <h3 className="text-lg font-bold uppercase tracking-widest">Cấu hình mức donation</h3>
-            <p className="text-xs text-outline">Cấu hình giao diện của widget theo mức donation</p>
+            <h3 className="text-lg font-bold uppercase tracking-widest">
+              Cấu hình mức donation
+            </h3>
+            <p className="text-xs text-outline">
+              Cấu hình giao diện của widget theo mức donation
+            </p>
           </div>
-          <Button onClick={() => setIsAddLevelOpen(true)} className="bg-primary text-black rounded-none font-bold uppercase tracking-widest">
+          <Button
+            type="button"
+            onClick={() => {
+              setAddError(null);
+              setIsAddLevelOpen(true);
+            }}
+            className="bg-primary text-black rounded-none font-bold uppercase tracking-widest"
+          >
             <Plus className="w-4 h-4 mr-2" /> Thêm mức
           </Button>
         </div>
-        
+
+        {levelsLoading && (
+          <div className="flex items-center gap-2 text-xs text-outline">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Đang tải danh sách mức…
+          </div>
+        )}
+
         <div className="space-y-4">
-          {levels.map(level => (
-            <Card key={level.id} className="bg-surface-container-low border-outline-variant/20 rounded-none">
+          {levels.map((level) => (
+            <Card
+              key={level.listKey}
+              className="bg-surface-container-low border-outline-variant/20 rounded-none"
+            >
               <CardContent className="p-0">
                 <div className="p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-4 cursor-pointer flex-1" onClick={() => toggleLevelOpen(level.id)}>
-                    <Button variant="ghost" size="icon">{level.isOpen ? <ChevronUp /> : <ChevronDown />}</Button>
+                  <div
+                    className="flex items-center gap-4 cursor-pointer flex-1"
+                    onClick={() => toggleLevelOpen(level.listKey)}
+                  >
+                    <Button variant="ghost" size="icon">
+                      {level.isOpen ? <ChevronUp /> : <ChevronDown />}
+                    </Button>
                     <div>
                       <p className="font-bold">{level.name}</p>
-                      <p className="text-xs text-outline">{level.min.toLocaleString()} - {level.max === Infinity ? 'Vô hạn' : level.max.toLocaleString()} VND</p>
+                      <p className="text-xs text-outline">
+                        {level.min.toLocaleString()} —{" "}
+                        {level.max === Infinity
+                          ? "Vô hạn"
+                          : level.max.toLocaleString()}{" "}
+                        VND
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Switch checked={level.active} onCheckedChange={() => toggleLevelActive(level.id)} className="data-[state=checked]:bg-primary data-[state=unchecked]:bg-gray-500" />
-                    <Button variant="ghost" size="icon"><Eye className="w-4 h-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => cloneLevel(level.id)}><Copy className="w-4 h-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => openEditLevel(level)}><Pencil className="w-4 h-4" /></Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="text-destructive" 
-                      disabled={levels.length <= 1}
-                      onClick={() => { setLevelToDelete(level.id); setIsDeleteDialogOpen(true); }}
+                    <Switch
+                      checked={level.active}
+                      disabled={!level.persisted}
+                      onCheckedChange={(v) =>
+                        void toggleLevelActive(level.routeId, v)
+                      }
+                      className="data-[state=checked]:bg-primary data-[state=unchecked]:bg-gray-500"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      disabled={!widgetUrlResolved}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (widgetUrlResolved)
+                          window.open(
+                            widgetUrlResolved,
+                            "_blank",
+                            "noreferrer",
+                          );
+                      }}
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      disabled={!level.persisted}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void cloneLevel(level.routeId);
+                      }}
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      disabled={!level.persisted}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditLevel(level);
+                      }}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive"
+                      disabled={levels.length <= 1 || !level.persisted}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setLevelToDeleteRouteId(level.routeId);
+                        setIsDeleteDialogOpen(true);
+                      }}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -130,59 +644,160 @@ export function StreamerObsSettingsView() {
                 </div>
                 {level.isOpen && (
                   <div className="p-6 border-t border-outline-variant/10">
-                    <SettingsForm />
+                    {!level.persisted && (
+                      <p className="text-xs text-outline mb-4">
+                        Đang chờ mã mức từ server — tải lại sau vài giây hoặc mở
+                        lại trang.
+                      </p>
+                    )}
+                    <SettingsForm
+                      levelRouteId={level.routeId}
+                      configuration={
+                        level.dto.configuration as
+                          | Record<string, unknown>
+                          | undefined
+                      }
+                    />
                   </div>
                 )}
               </CardContent>
             </Card>
           ))}
         </div>
+
+        {!levelsLoading && levels.length === 0 && streamerId && (
+          <p className="text-sm text-outline">
+            Chưa có mức donation. Nhấn &quot;Thêm mức&quot; để tạo trên server.
+          </p>
+        )}
       </div>
 
-      {/* Add Level Dialog */}
       <Dialog open={isAddLevelOpen} onOpenChange={setIsAddLevelOpen}>
         <DialogContent className="bg-surface-container-lowest border border-outline-variant/20 rounded-none max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold uppercase tracking-widest">Thêm mức donation</DialogTitle>
+            <DialogTitle className="text-lg font-bold uppercase tracking-widest">
+              Thêm mức donation
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <Input placeholder="Tên mức (VD: Cấp 2)" className="bg-surface-container-highest/30 border-outline-variant/20 rounded-none" />
+            {addError && (
+              <p className="text-sm text-destructive">{addError}</p>
+            )}
+            <Input
+              placeholder="Tên mức (VD: Cấp 2)"
+              value={addName}
+              onChange={(e) => setAddName(e.target.value)}
+              className="bg-surface-container-highest/30 border-outline-variant/20 rounded-none"
+            />
             <div className="grid grid-cols-2 gap-4">
-              <Input placeholder="Số tiền tối thiểu (VND)" className="bg-surface-container-highest/30 border-outline-variant/20 rounded-none" />
-              <Input placeholder="Số tiền tối đa (VND)" className="bg-surface-container-highest/30 border-outline-variant/20 rounded-none" />
+              <Input
+                placeholder="Số tiền tối thiểu (VND)"
+                value={addMin}
+                onChange={(e) => setAddMin(e.target.value)}
+                className="bg-surface-container-highest/30 border-outline-variant/20 rounded-none"
+              />
+              <Input
+                placeholder="Số tiền tối đa (VND)"
+                value={addMax}
+                onChange={(e) => setAddMax(e.target.value)}
+                disabled={addUnlimited}
+                className="bg-surface-container-highest/30 border-outline-variant/20 rounded-none"
+              />
             </div>
             <div className="flex items-center space-x-2">
-              <Checkbox id="unlimited" />
+              <Checkbox
+                id="unlimited"
+                checked={addUnlimited}
+                onCheckedChange={(c) => setAddUnlimited(c === true)}
+              />
               <Label htmlFor="unlimited">Số tiền tối đa là vô hạn</Label>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setIsAddLevelOpen(false)} className="rounded-none">Huỷ</Button>
-            <Button className="bg-primary text-black rounded-none">Tạo</Button>
+            <Button
+              variant="ghost"
+              onClick={() => setIsAddLevelOpen(false)}
+              className="rounded-none"
+            >
+              Huỷ
+            </Button>
+            <Button
+              type="button"
+              className="bg-primary text-black rounded-none"
+              disabled={addSaving}
+              onClick={() => void submitAddLevel()}
+            >
+              {addSaving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                "Tạo"
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Edit Level Dialog */}
       <Dialog open={isEditLevelOpen} onOpenChange={setIsEditLevelOpen}>
         <DialogContent className="bg-surface-container-lowest border border-outline-variant/20 rounded-none max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold uppercase tracking-widest">Chỉnh sửa mức donation</DialogTitle>
+            <DialogTitle className="text-lg font-bold uppercase tracking-widest">
+              Chỉnh sửa mức donation
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <Input defaultValue={editingLevel?.name} placeholder="Tên mức" className="bg-surface-container-highest/30 border-outline-variant/20 rounded-none" />
+            {editError && (
+              <p className="text-sm text-destructive">{editError}</p>
+            )}
+            <Input
+              placeholder="Tên mức"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              className="bg-surface-container-highest/30 border-outline-variant/20 rounded-none"
+            />
             <div className="grid grid-cols-2 gap-4">
-              <Input defaultValue={editingLevel?.min} placeholder="Số tiền tối thiểu (VND)" className="bg-surface-container-highest/30 border-outline-variant/20 rounded-none" />
-              <Input defaultValue={editingLevel?.max === Infinity ? '' : editingLevel?.max} placeholder="Số tiền tối đa (VND)" className="bg-surface-container-highest/30 border-outline-variant/20 rounded-none" />
+              <Input
+                placeholder="Số tiền tối thiểu (VND)"
+                value={editMin}
+                onChange={(e) => setEditMin(e.target.value)}
+                className="bg-surface-container-highest/30 border-outline-variant/20 rounded-none"
+              />
+              <Input
+                placeholder="Số tiền tối đa (VND)"
+                value={editMax}
+                onChange={(e) => setEditMax(e.target.value)}
+                disabled={editUnlimited}
+                className="bg-surface-container-highest/30 border-outline-variant/20 rounded-none"
+              />
             </div>
             <div className="flex items-center space-x-2">
-              <Checkbox id="unlimited-edit" defaultChecked={editingLevel?.max === Infinity} />
+              <Checkbox
+                id="unlimited-edit"
+                checked={editUnlimited}
+                onCheckedChange={(c) => setEditUnlimited(c === true)}
+              />
               <Label htmlFor="unlimited-edit">Số tiền tối đa là vô hạn</Label>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setIsEditLevelOpen(false)} className="rounded-none">Huỷ</Button>
-            <Button onClick={saveEditLevel} className="bg-primary text-black rounded-none">Lưu</Button>
+            <Button
+              variant="ghost"
+              onClick={() => setIsEditLevelOpen(false)}
+              className="rounded-none"
+            >
+              Huỷ
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void saveEditLevel()}
+              className="bg-primary text-black rounded-none"
+              disabled={editSaving}
+            >
+              {editSaving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                "Lưu"
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -190,12 +805,28 @@ export function StreamerObsSettingsView() {
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="bg-surface-container-lowest border border-outline-variant/20 rounded-none max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold uppercase tracking-widest">Xác nhận xóa</DialogTitle>
+            <DialogTitle className="text-lg font-bold uppercase tracking-widest">
+              Xác nhận xóa
+            </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-outline">Bạn có chắc chắn muốn xóa mức donation này không?</p>
+          <p className="text-sm text-outline">
+            Bạn có chắc chắn muốn xóa mức donation này không?
+          </p>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setIsDeleteDialogOpen(false)} className="rounded-none">Huỷ</Button>
-            <Button onClick={() => levelToDelete && deleteLevel(levelToDelete)} className="bg-destructive text-white rounded-none">Xóa</Button>
+            <Button
+              variant="ghost"
+              onClick={() => setIsDeleteDialogOpen(false)}
+              className="rounded-none"
+            >
+              Huỷ
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void deleteLevel()}
+              className="bg-destructive text-white rounded-none"
+            >
+              Xóa
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -203,9 +834,149 @@ export function StreamerObsSettingsView() {
   );
 }
 
-function SettingsForm() {
-  const Section = ({ title, children, className = "", rightContent }: { title: string, children: ReactNode, className?: string, rightContent?: ReactNode }) => (
-    <div className={`bg-[#1A1A1A] p-6 space-y-4 border-l-4 border-primary ${className}`}>
+function CheckMini() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  );
+}
+
+function SettingsForm({
+  levelRouteId,
+  configuration,
+}: {
+  levelRouteId: string;
+  configuration?: Record<string, unknown>;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploadMedia, { isLoading: uploading }] = useUploadMediaMutation();
+  const [deleteMedia, { isLoading: deleting }] = useDeleteMediaMutation();
+  const [updateLevel] = useUpdateDonationLevelMutation();
+
+  const imageSettings = configuration?.imageSettings as
+    | { url?: string | null }
+    | undefined;
+  const soundSettings = configuration?.soundSettings as
+    | { url?: string | null }
+    | undefined;
+  const imageUrl =
+    typeof imageSettings?.url === "string" ? imageSettings.url : "";
+  const soundUrl =
+    typeof soundSettings?.url === "string" ? soundSettings.url : "";
+  const mediaUrl = imageUrl || soundUrl;
+
+  const mergeConfiguration = useCallback(
+    (patch: Record<string, unknown>) => ({
+      ...(configuration && typeof configuration === "object"
+        ? configuration
+        : {}),
+      ...patch,
+    }),
+    [configuration],
+  );
+
+  const onPickFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !levelRouteId) return;
+    const mime = file.type || "";
+    const mediaType = mime.startsWith("video")
+      ? "video"
+      : mime.startsWith("audio")
+        ? "sound"
+        : "image";
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("mediaType", mediaType);
+    fd.append("purpose", "alert");
+    try {
+      const res = (await uploadMedia(fd).unwrap()) as ApiResponse<MediaUploadResponse>;
+      const url = res.data?.url;
+      if (!url) return;
+      const nextConfig =
+        mediaType === "sound"
+          ? mergeConfiguration({
+              soundSettings: {
+                ...(typeof soundSettings === "object" && soundSettings
+                  ? soundSettings
+                  : {}),
+                url,
+                mediaType,
+              },
+            })
+          : mergeConfiguration({
+              imageSettings: {
+                ...(typeof imageSettings === "object" && imageSettings
+                  ? imageSettings
+                  : {}),
+                url,
+                mediaType,
+              },
+            });
+      await updateLevel({
+        levelId: levelRouteId,
+        body: { configuration: nextConfig },
+      }).unwrap();
+    } catch (err) {
+      console.warn(getMutationError(err));
+    }
+  };
+
+  const onDeleteMedia = async () => {
+    if (!mediaUrl || !levelRouteId) return;
+    try {
+      await deleteMedia(mediaUrl).unwrap();
+      const nextConfig = soundUrl
+        ? mergeConfiguration({
+            soundSettings: {
+              ...(typeof soundSettings === "object" && soundSettings
+                ? soundSettings
+                : {}),
+              url: null,
+            },
+          })
+        : mergeConfiguration({
+            imageSettings: {
+              ...(typeof imageSettings === "object" && imageSettings
+                ? imageSettings
+                : {}),
+              url: null,
+            },
+          });
+      await updateLevel({
+        levelId: levelRouteId,
+        body: { configuration: nextConfig },
+      }).unwrap();
+    } catch (err) {
+      console.warn(getMutationError(err));
+    }
+  };
+
+  const Section = ({
+    title,
+    children,
+    className = "",
+    rightContent,
+  }: {
+    title: string;
+    children: ReactNode;
+    className?: string;
+    rightContent?: ReactNode;
+  }) => (
+    <div
+      className={`bg-[#1A1A1A] p-6 space-y-4 border-l-4 border-primary ${className}`}
+    >
       <div className="flex justify-between items-center">
         <h4 className="font-extrabold uppercase tracking-widest text-primary flex items-center gap-2">
           {title}
@@ -216,24 +987,68 @@ function SettingsForm() {
     </div>
   );
 
-  const Control = ({ label, children }: { label: string, children: ReactNode }) => (
+  const Control = ({
+    label,
+    children,
+  }: {
+    label: string;
+    children: ReactNode;
+  }) => (
     <div className="bg-[#333333] p-4 space-y-1">
-      <Label className="text-[10px] font-bold uppercase text-[#999999]">{label}</Label>
+      <Label className="text-[10px] font-bold uppercase text-[#999999]">
+        {label}
+      </Label>
       {children}
     </div>
   );
 
   return (
     <div className="space-y-6">
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*,audio/*,video/*"
+        className="hidden"
+        onChange={(ev) => void onPickFile(ev)}
+      />
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Section title="Media">
-          <div className="border-2 border-dashed border-outline-variant/30 p-8 text-center text-outline bg-surface-container-lowest">
-            <Upload className="w-8 h-8 mx-auto mb-2" />
+          <button
+            type="button"
+            disabled={uploading || !levelRouteId}
+            onClick={() => fileRef.current?.click()}
+            className="w-full border-2 border-dashed border-outline-variant/30 p-8 text-center text-outline bg-surface-container-lowest hover:bg-surface-container-lowest/80 disabled:opacity-50"
+          >
+            {uploading ? (
+              <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin" />
+            ) : (
+              <Upload className="w-8 h-8 mx-auto mb-2" />
+            )}
             <p className="text-xs font-bold uppercase">Upload Media</p>
-          </div>
+            {mediaUrl ? (
+              <p className="text-[10px] mt-2 break-all opacity-80">{mediaUrl}</p>
+            ) : null}
+          </button>
           <div className="grid grid-cols-2 gap-2">
-            <Button variant="outline" className="border-outline rounded-none uppercase text-xs font-bold"><RefreshCw className="w-4 h-4 mr-2" /> Replace</Button>
-            <Button variant="outline" className="border-outline rounded-none uppercase text-xs font-bold text-destructive"><Trash2 className="w-4 h-4 mr-2" /> Delete</Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="border-outline rounded-none uppercase text-xs font-bold"
+              disabled={uploading || !levelRouteId}
+              onClick={() => fileRef.current?.click()}
+            >
+              <RefreshCw className="w-4 h-4 mr-2" /> Replace
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="border-outline rounded-none uppercase text-xs font-bold text-destructive"
+              disabled={deleting || !mediaUrl || !levelRouteId}
+              onClick={() => void onDeleteMedia()}
+            >
+              <Trash2 className="w-4 h-4 mr-2" /> Delete
+            </Button>
           </div>
         </Section>
 
@@ -241,8 +1056,15 @@ function SettingsForm() {
           <div className="space-y-4">
             <Control label="Volume">
               <div className="flex items-center gap-4">
-                <Slider defaultValue={[50]} max={100} step={1} className="[&_[role=slider]]:bg-primary [&_[role=slider]]:border-primary [&_[role=slider]]:rounded-full" />
-                <span className="text-sm font-bold text-primary w-8 text-right">50%</span>
+                <Slider
+                  defaultValue={[50]}
+                  max={100}
+                  step={1}
+                  className="[&_[role=slider]]:bg-primary [&_[role=slider]]:border-primary [&_[role=slider]]:rounded-full"
+                />
+                <span className="text-sm font-bold text-primary w-8 text-right">
+                  50%
+                </span>
               </div>
             </Control>
             <div className="grid grid-cols-2 gap-4">
@@ -256,10 +1078,18 @@ function SettingsForm() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <Control label="Fade in (ms)">
-              <Input type="number" defaultValue={300} className="bg-transparent border-none p-0 h-6 text-sm" />
+              <Input
+                type="number"
+                defaultValue={300}
+                className="bg-transparent border-none p-0 h-6 text-sm"
+              />
             </Control>
             <Control label="Fade out (ms)">
-              <Input type="number" defaultValue={300} className="bg-transparent border-none p-0 h-6 text-sm" />
+              <Input
+                type="number"
+                defaultValue={300}
+                className="bg-transparent border-none p-0 h-6 text-sm"
+              />
             </Control>
           </div>
         </Section>
@@ -269,17 +1099,34 @@ function SettingsForm() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-4">
             <Control label="Font Family">
-              <Select><SelectTrigger className="bg-transparent border-none p-0 h-6 text-sm"><SelectValue placeholder="Space Grotesk" /></SelectTrigger></Select>
+              <Select>
+                <SelectTrigger className="bg-transparent border-none p-0 h-6 text-sm">
+                  <SelectValue placeholder="Space Grotesk" />
+                </SelectTrigger>
+              </Select>
             </Control>
             <div className="grid grid-cols-2 gap-4">
               <Control label="Weight">
-                <Select><SelectTrigger className="bg-transparent border-none p-0 h-6 text-sm"><SelectValue placeholder="Bold" /></SelectTrigger></Select>
+                <Select>
+                  <SelectTrigger className="bg-transparent border-none p-0 h-6 text-sm">
+                    <SelectValue placeholder="Bold" />
+                  </SelectTrigger>
+                </Select>
               </Control>
               <Control label="Font Size (px)">
-                <Input type="number" defaultValue={24} className="bg-transparent border-none p-0 h-6 text-sm" />
+                <Input
+                  type="number"
+                  defaultValue={24}
+                  className="bg-transparent border-none p-0 h-6 text-sm"
+                />
               </Control>
             </div>
-            <Slider defaultValue={[50]} max={100} step={1} className="[&_[role=slider]]:bg-primary [&_[role=slider]]:border-primary [&_[role=slider]]:rounded-full" />
+            <Slider
+              defaultValue={[50]}
+              max={100}
+              step={1}
+              className="[&_[role=slider]]:bg-primary [&_[role=slider]]:border-primary [&_[role=slider]]:rounded-full"
+            />
           </div>
           <div className="grid grid-cols-1 gap-4">
             <Control label="Message Color">
@@ -296,31 +1143,68 @@ function SettingsForm() {
       </Section>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Section title="Animation" rightContent={<Switch className="data-[state=checked]:bg-black data-[state=unchecked]:bg-amber-100 border border-primary [&_[role=thumb]]:rounded-full [&_[role=thumb]]:bg-primary" />}>
+        <Section
+          title="Animation"
+          rightContent={
+            <Switch className="data-[state=checked]:bg-black data-[state=unchecked]:bg-amber-100 border border-primary [&_[role=thumb]]:rounded-full [&_[role=thumb]]:bg-primary" />
+          }
+        >
           <div className="space-y-4">
             <Control label="Kiểu (Type)">
-              <Select><SelectTrigger className="bg-transparent border-none p-0 h-6 text-sm"><SelectValue placeholder="Slide In" /></SelectTrigger></Select>
+              <Select>
+                <SelectTrigger className="bg-transparent border-none p-0 h-6 text-sm">
+                  <SelectValue placeholder="Slide In" />
+                </SelectTrigger>
+              </Select>
             </Control>
             <Control label="Hướng (Direction)">
-              <Select><SelectTrigger className="bg-transparent border-none p-0 h-6 text-sm"><SelectValue placeholder="From Left" /></SelectTrigger></Select>
+              <Select>
+                <SelectTrigger className="bg-transparent border-none p-0 h-6 text-sm">
+                  <SelectValue placeholder="From Left" />
+                </SelectTrigger>
+              </Select>
             </Control>
             <Control label="Duration (ms)">
-              <Input type="number" defaultValue={800} className="bg-transparent border-none p-0 h-6 text-sm" />
+              <Input
+                type="number"
+                defaultValue={800}
+                className="bg-transparent border-none p-0 h-6 text-sm"
+              />
             </Control>
           </div>
         </Section>
 
-        <Section title="Thời gian hiển thị" rightContent={<div className="flex items-center gap-2"><span className="text-xs font-bold uppercase">Tự ẩn</span> <Switch className="data-[state=checked]:bg-black data-[state=unchecked]:bg-amber-100 border border-primary [&_[role=thumb]]:rounded-full [&_[role=thumb]]:bg-primary" /></div>}>
+        <Section
+          title="Thời gian hiển thị"
+          rightContent={
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase">Tự ẩn</span>{" "}
+              <Switch className="data-[state=checked]:bg-black data-[state=unchecked]:bg-amber-100 border border-primary [&_[role=thumb]]:rounded-full [&_[role=thumb]]:bg-primary" />
+            </div>
+          }
+        >
           <div className="space-y-4">
             <Control label="Display Duration (Seconds)">
-              <Input type="number" defaultValue={10} className="bg-transparent border-none p-0 h-6 text-sm" />
+              <Input
+                type="number"
+                defaultValue={10}
+                className="bg-transparent border-none p-0 h-6 text-sm"
+              />
             </Control>
             <div className="grid grid-cols-2 gap-4">
               <Control label="Fade in (ms)">
-                <Input type="number" defaultValue={400} className="bg-transparent border-none p-0 h-6 text-sm" />
+                <Input
+                  type="number"
+                  defaultValue={400}
+                  className="bg-transparent border-none p-0 h-6 text-sm"
+                />
               </Control>
               <Control label="Fade out (ms)">
-                <Input type="number" defaultValue={400} className="bg-transparent border-none p-0 h-6 text-sm" />
+                <Input
+                  type="number"
+                  defaultValue={400}
+                  className="bg-transparent border-none p-0 h-6 text-sm"
+                />
               </Control>
             </div>
           </div>
