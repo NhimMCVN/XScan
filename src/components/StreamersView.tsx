@@ -12,7 +12,9 @@ import {
   Fragment,
   useCallback,
   useDeferredValue,
+  useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { Input } from "@/components/ui/input";
@@ -31,6 +33,7 @@ import {
 } from "@/src/redux/queries/favoriteStreamers.api";
 import { useGetPublicLeaderboardDonorsQuery } from "@/src/redux/queries/public.api";
 import { useAuthSelector } from "@/src/redux/slices/auth.slice";
+import { STREAMERS_SEARCH_FROM_HEADER_SESSION_KEY } from "@/src/utils/appNavigation";
 
 const AVATAR_PLACEHOLDER =
   "https://placehold.co/400x400/1a1a1a/666666?text=XSCAN";
@@ -226,7 +229,22 @@ function StreamerTile({
 export function StreamersView() {
   const { isAuthenticated } = useAuthSelector();
   const [search, setSearch] = useState("");
+  const appliedHeaderSearchRef = useRef(false);
   const deferredSearch = useDeferredValue(search.trim());
+
+  useEffect(() => {
+    if (appliedHeaderSearchRef.current) return;
+    appliedHeaderSearchRef.current = true;
+    try {
+      const v = sessionStorage.getItem(STREAMERS_SEARCH_FROM_HEADER_SESSION_KEY);
+      if (v?.trim()) {
+        setSearch(v.trim());
+        sessionStorage.removeItem(STREAMERS_SEARCH_FROM_HEADER_SESSION_KEY);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
   const [isDonateOpen, setIsDonateOpen] = useState(false);
   const [isChallengeOpen, setIsChallengeOpen] = useState(false);
   const [isHistoryDrawerOpen, setIsHistoryDrawerOpen] = useState(false);

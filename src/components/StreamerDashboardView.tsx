@@ -320,7 +320,6 @@ export function StreamerDashboardView() {
     );
 
   const [currency, setCurrency] = useState<"VND" | "GEM">("VND");
-  const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
   const [customAmount, setCustomAmount] = useState("");
   const [showQR, setShowQR] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -402,11 +401,15 @@ export function StreamerDashboardView() {
   };
 
   const handleCreateQR = () => {
-    if (!selectedAmount && !customAmount) return;
+    if (!customAmount.trim()) return;
     setShowQR(true);
   };
 
-  const currentAmount = selectedAmount || Number(customAmount) || 0;
+  const currentAmount = Number(customAmount) || 0;
+  const quickPresetMatchesInput = (preset: number) =>
+    customAmount.trim() !== "" &&
+    Number.isFinite(Number(customAmount)) &&
+    Number(customAmount) === preset;
   const conversionText =
     currency === "VND"
       ? `Nạp ${currentAmount.toLocaleString()} VND sẽ nhận được ${(currentAmount / 1000).toFixed(0)} GEM`
@@ -606,11 +609,8 @@ export function StreamerDashboardView() {
                           <Button
                             key={amount}
                             variant="outline"
-                            onClick={() => {
-                              setSelectedAmount(amount);
-                              setCustomAmount("");
-                            }}
-                            className={`h-10 md:h-12 rounded-[8px] border-outline-variant/20 text-[10px] md:text-xs font-bold font-mono ${selectedAmount === amount ? "bg-primary text-black border-primary" : "hover:bg-surface-container-high"}`}
+                            onClick={() => setCustomAmount(String(amount))}
+                            className={`h-10 md:h-12 rounded-[8px] border-outline-variant/20 text-[10px] md:text-xs font-bold font-mono ${quickPresetMatchesInput(amount) ? "bg-primary text-black border-primary" : "hover:bg-surface-container-high"}`}
                           >
                             {amount.toLocaleString()}
                           </Button>
@@ -626,10 +626,7 @@ export function StreamerDashboardView() {
                         <Input
                           type="number"
                           value={customAmount}
-                          onChange={(e) => {
-                            setCustomAmount(e.target.value);
-                            setSelectedAmount(null);
-                          }}
+                          onChange={(e) => setCustomAmount(e.target.value)}
                           placeholder="0"
                           className="h-10 md:h-12 pl-3 md:pl-4 pr-12 md:pr-16 bg-surface-container-low border-outline-variant/20 font-mono text-xs md:text-sm rounded-[8px]"
                         />
@@ -639,7 +636,7 @@ export function StreamerDashboardView() {
                       </div>
                     </div>
 
-                    {(selectedAmount || customAmount) && (
+                    {customAmount.trim() !== "" && (
                       <div className="bg-primary/5 border border-primary/10 p-3 md:p-4 rounded-[8px] flex items-start gap-2 md:gap-3 max-w-2xl">
                         <AlertCircle className="w-3 h-3 md:w-4 md:h-4 text-primary shrink-0 mt-0.5" />
                         <p className="text-[9px] md:text-[10px] text-primary/80 leading-relaxed">
@@ -652,7 +649,7 @@ export function StreamerDashboardView() {
                       <Button
                         className="w-full md:w-auto px-8 text-[10px] md:text-xs font-bold tracking-[0.2em] uppercase h-10 md:h-12 rounded-[8px] bg-primary text-black hover:bg-primary/90 transition-all shadow-[0_0_15px_rgba(255,184,0,0.1)]"
                         onClick={handleCreateQR}
-                        disabled={!selectedAmount && !customAmount}
+                        disabled={!customAmount.trim()}
                       >
                         TẠO MÃ THANH TOÁN
                       </Button>

@@ -1,5 +1,9 @@
 /** Đồng bộ pathname với `currentView` — reload & chia sẻ link, không dùng hash */
 
+/** TopNav tìm streamer → `StreamersView` đọc một lần khi vào tab STREAMERS. */
+export const STREAMERS_SEARCH_FROM_HEADER_SESSION_KEY =
+  "xscan_streamers_search_from_header";
+
 const SEGMENT_TO_VIEW: Record<string, string> = {
   "": "MATCHES",
   matches: "MATCHES",

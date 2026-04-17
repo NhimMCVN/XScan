@@ -16,6 +16,7 @@ import { StreamerObsSettingsView } from "./components/StreamerObsSettingsView";
 import { DonationLinkPageView } from "./components/DonationLinkPageView";
 import { WidgetAlertView } from "./components/widget-alert/WidgetAlertView";
 import { AuthView } from "./components/AuthView";
+import { LogoutConfirmDialog } from "./components/LogoutConfirmDialog";
 import { useAppDispatch, type RootState } from "./redux";
 import { logout } from "./redux/slices/auth.slice";
 import { isStreamerRole } from "./utils/userRole";
@@ -36,13 +37,13 @@ export default function App() {
   const [currentView, setCurrentView] = useState(() =>
     typeof window !== "undefined" ? getInitialViewFromLocation() : "MATCHES",
   );
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
 
   useEffect(() => {
     const handleNavigate = (e: Event) => {
       const detail = (e as CustomEvent<string>).detail;
       if (detail === "LOGOUT") {
-        dispatch(logout());
-        setCurrentView("MATCHES");
+        setLogoutConfirmOpen(true);
         return;
       }
       setCurrentView(detail);
@@ -97,6 +98,15 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
+      <LogoutConfirmDialog
+        open={logoutConfirmOpen}
+        onOpenChange={setLogoutConfirmOpen}
+        onConfirm={() => {
+          dispatch(logout());
+          setCurrentView("MATCHES");
+          setLogoutConfirmOpen(false);
+        }}
+      />
       <TopNav currentView={currentView} />
       <div className="flex flex-1 overflow-hidden">
         {currentView !== "STREAMERS" &&
