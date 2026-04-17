@@ -29,6 +29,7 @@ import {
   pathsEqual,
   viewFromPathname,
 } from "./utils/appNavigation";
+import { DEFAULT_HOME_GAME_ZONE_ID } from "./constants/homeGameZones";
 
 export default function App() {
   const dispatch = useAppDispatch();
@@ -38,6 +39,7 @@ export default function App() {
     typeof window !== "undefined" ? getInitialViewFromLocation() : "MATCHES",
   );
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [homeGameZone, setHomeGameZone] = useState(DEFAULT_HOME_GAME_ZONE_ID);
 
   useEffect(() => {
     const handleNavigate = (e: Event) => {
@@ -109,13 +111,6 @@ export default function App() {
       />
       <TopNav currentView={currentView} />
       <div className="flex flex-1 overflow-hidden">
-        {currentView !== "STREAMERS" &&
-          currentView !== "PROFILE" &&
-          currentView !== "BECOME_STREAMER" &&
-          currentView !== "STREAMER_CHALLENGES" &&
-          currentView !== "STREAMER_DONATIONS" &&
-          currentView !== "DONATION_LINKS" &&
-          currentView !== "OBS_SETTINGS" && <Sidebar />}
         {currentView === "STREAMERS" ? (
           <StreamersView />
         ) : currentView === "PROFILE" ? (
@@ -140,7 +135,11 @@ export default function App() {
           <StreamerObsSettingsView />
         ) : (
           <>
-            <MainContent />
+            <Sidebar
+              activeGameZone={homeGameZone}
+              onGameZoneChange={setHomeGameZone}
+            />
+            <MainContent activeHomeGameZone={homeGameZone} />
             <RightSidebar />
           </>
         )}
