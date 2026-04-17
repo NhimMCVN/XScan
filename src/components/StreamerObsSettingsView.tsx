@@ -42,6 +42,7 @@ import { useGetProfileQuery } from "@/src/redux/queries/user.api";
 import {
   useGetMySettingsQuery,
   useCreateSettingsMutation,
+  useUpdateMySettingsMutation,
   useGetDonationLevelsQuery,
   useAddDonationLevelMutation,
   useUpdateDonationLevelMutation,
@@ -52,9 +53,14 @@ import {
   type DonationLevelDTO,
   type ApiResponse,
   type MediaUploadResponse,
+  type ImageSettings,
+  type SoundSettings,
 } from "@/src/redux/queries/obs.api";
 
 const UNLIMITED_MAX_SENTINEL = 9e15;
+
+/** Luôn render dòng đầu: cấu hình gốc trên `my-settings` (không phải một donation level). */
+const OBS_GLOBAL_DEFAULT_LIST_KEY = "__obs_global_default__";
 
 function absoluteApiUrl(maybe: string | undefined): string {
   if (!maybe) return "";
@@ -124,6 +130,44 @@ type UiDonationLevel = {
   isOpen: boolean;
 };
 
+type DisplayRow =
+  | {
+      kind: "global";
+      listKey: typeof OBS_GLOBAL_DEFAULT_LIST_KEY;
+      isOpen: boolean;
+      widgetActive: boolean;
+    }
+  | ({ kind: "level" } & UiDonationLevel);
+
+function buildGlobalSettingsAsConfiguration(
+  s: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!s || typeof s !== "object") return undefined;
+  const pick = (k: string) => {
+    const v = s[k];
+    if (v !== undefined && typeof v === "object" && v !== null) return v;
+    return undefined;
+  };
+  const out: Record<string, unknown> = {};
+  const img = pick("imageSettings");
+  const snd = pick("soundSettings");
+  const anim = pick("animationSettings");
+  const sty = pick("styleSettings");
+  const disp = pick("displaySettings");
+  const gen = pick("generalSettings");
+  const pos = pick("positionSettings");
+  const lay = pick("layoutSettings");
+  if (img) out.imageSettings = img;
+  if (snd) out.soundSettings = snd;
+  if (anim) out.animationSettings = anim;
+  if (sty) out.styleSettings = sty;
+  if (disp) out.displaySettings = disp;
+  if (gen) out.generalSettings = gen;
+  if (pos) out.positionSettings = pos;
+  if (lay) out.layoutSettings = lay;
+  return Object.keys(out).length ? out : undefined;
+}
+
 export function StreamerObsSettingsView() {
   const { data: profileRes, isLoading: profileLoading } = useGetProfileQuery();
   const profile = profileRes?.success ? profileRes.data : undefined;
@@ -191,11 +235,11 @@ export function StreamerObsSettingsView() {
     [levelsRes],
   );
 
-  const [openByRouteId, setOpenByRouteId] = useState<Record<string, boolean>>(
+  const [openByListKey, setOpenByListKey] = useState<Record<string, boolean>>(
     {},
   );
 
-  const levels: UiDonationLevel[] = useMemo(
+  const donationLevelsUi: UiDonationLevel[] = useMemo(
     () =>
       apiLevels.map((dto, idx) => {
         const routeId = donationLevelRouteId(dto);
@@ -214,18 +258,35 @@ export function StreamerObsSettingsView() {
           min,
           max,
           active: dto.isEnabled !== false,
-          isOpen: openByRouteId[listKey] ?? false,
+          isOpen: openByListKey[listKey] ?? false,
         };
       }),
-    [apiLevels, openByRouteId],
+    [apiLevels, openByListKey],
   );
 
-  const toggleLevelOpen = (listKey: string) => {
-    setOpenByRouteId((m) => ({ ...m, [listKey]: !m[listKey] }));
+  const displayRows: DisplayRow[] = useMemo(() => {
+    const rows: DisplayRow[] = [];
+    if (settingsRes?.success && settings) {
+      rows.push({
+        kind: "global",
+        listKey: OBS_GLOBAL_DEFAULT_LIST_KEY,
+        isOpen: openByListKey[OBS_GLOBAL_DEFAULT_LIST_KEY] ?? false,
+        widgetActive: settings.isActive !== false,
+      });
+    }
+    for (const l of donationLevelsUi) {
+      rows.push({ kind: "level", ...l });
+    }
+    return rows;
+  }, [settingsRes?.success, settings, donationLevelsUi, openByListKey]);
+
+  const toggleRowOpen = (listKey: string) => {
+    setOpenByListKey((m) => ({ ...m, [listKey]: !m[listKey] }));
   };
 
   const [addLevel] = useAddDonationLevelMutation();
   const [updateLevel] = useUpdateDonationLevelMutation();
+  const [updateMySettings] = useUpdateMySettingsMutation();
   const [deleteLevelMut] = useDeleteDonationLevelMutation();
 
   const [isAddLevelOpen, setIsAddLevelOpen] = useState(false);
@@ -243,6 +304,15 @@ export function StreamerObsSettingsView() {
         levelId: routeId,
         body: { isEnabled: next },
       }).unwrap();
+    } catch (e) {
+      console.warn(getMutationError(e));
+    }
+  };
+
+  const toggleGlobalWidgetActive = async (next: boolean) => {
+    try {
+      await updateMySettings({ isActive: next }).unwrap();
+      await refetchSettings();
     } catch (e) {
       console.warn(getMutationError(e));
     }
@@ -551,38 +621,57 @@ export function StreamerObsSettingsView() {
         )}
 
         <div className="space-y-4">
-          {levels.map((level) => (
+          {displayRows.map((row) => (
             <Card
-              key={level.listKey}
+              key={row.listKey}
               className="bg-surface-container-low border-outline-variant/20 rounded-none"
             >
               <CardContent className="p-0">
                 <div className="p-4 flex items-center justify-between">
                   <div
                     className="flex items-center gap-4 cursor-pointer flex-1"
-                    onClick={() => toggleLevelOpen(level.listKey)}
+                    onClick={() => toggleRowOpen(row.listKey)}
                   >
                     <Button variant="ghost" size="icon">
-                      {level.isOpen ? <ChevronUp /> : <ChevronDown />}
+                      {row.isOpen ? <ChevronUp /> : <ChevronDown />}
                     </Button>
                     <div>
-                      <p className="font-bold">{level.name}</p>
-                      <p className="text-xs text-outline">
-                        {level.min.toLocaleString()} —{" "}
-                        {level.max === Infinity
-                          ? "Vô hạn"
-                          : level.max.toLocaleString()}{" "}
-                        VND
-                      </p>
+                      {row.kind === "global" ? (
+                        <>
+                          <p className="font-bold">Cấu hình mặc định</p>
+                          <p className="text-xs text-outline">
+                            Cấu hình gốc trên OBS (my-settings) — 0 — Vô hạn
+                            VND · các mức bên dưới có thể ghi đè theo ngưỡng
+                            donation
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="font-bold">{row.name}</p>
+                          <p className="text-xs text-outline">
+                            {row.min.toLocaleString()} —{" "}
+                            {row.max === Infinity
+                              ? "Vô hạn"
+                              : row.max.toLocaleString()}{" "}
+                            VND
+                          </p>
+                        </>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Switch
-                      checked={level.active}
-                      disabled={!level.persisted}
-                      onCheckedChange={(v) =>
-                        void toggleLevelActive(level.routeId, v)
+                      checked={
+                        row.kind === "global"
+                          ? row.widgetActive
+                          : row.active
                       }
+                      disabled={row.kind === "level" && !row.persisted}
+                      onCheckedChange={(v) => {
+                        if (row.kind === "global")
+                          void toggleGlobalWidgetActive(v);
+                        else void toggleLevelActive(row.routeId, v);
+                      }}
                       className="data-[state=checked]:bg-primary data-[state=unchecked]:bg-gray-500"
                     />
                     <Button
@@ -602,62 +691,76 @@ export function StreamerObsSettingsView() {
                     >
                       <Eye className="w-4 h-4" />
                     </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      disabled={!level.persisted}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void cloneLevel(level.routeId);
-                      }}
-                    >
-                      <Copy className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      disabled={!level.persisted}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openEditLevel(level);
-                      }}
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="text-destructive"
-                      disabled={levels.length <= 1 || !level.persisted}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setLevelToDeleteRouteId(level.routeId);
-                        setIsDeleteDialogOpen(true);
-                      }}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    {row.kind === "level" && (
+                      <>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          disabled={!row.persisted}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void cloneLevel(row.routeId);
+                          }}
+                        >
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          disabled={!row.persisted}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEditLevel(row);
+                          }}
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive"
+                          disabled={apiLevels.length <= 1 || !row.persisted}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setLevelToDeleteRouteId(row.routeId);
+                            setIsDeleteDialogOpen(true);
+                          }}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
-                {level.isOpen && (
+                {row.isOpen && (
                   <div className="p-6 border-t border-outline-variant/10">
-                    {!level.persisted && (
+                    {row.kind === "level" && !row.persisted && (
                       <p className="text-xs text-outline mb-4">
                         Đang chờ mã mức từ server — tải lại sau vài giây hoặc mở
                         lại trang.
                       </p>
                     )}
-                    <SettingsForm
-                      levelRouteId={level.routeId}
-                      configuration={
-                        level.dto.configuration as
-                          | Record<string, unknown>
-                          | undefined
-                      }
-                    />
+                    {row.kind === "global" && settings ? (
+                      <SettingsForm
+                        scope="global"
+                        configuration={buildGlobalSettingsAsConfiguration(
+                          settings as unknown as Record<string, unknown>,
+                        )}
+                      />
+                    ) : row.kind === "level" ? (
+                      <SettingsForm
+                        scope="level"
+                        levelRouteId={row.routeId}
+                        configuration={
+                          row.dto.configuration as
+                            | Record<string, unknown>
+                            | undefined
+                        }
+                      />
+                    ) : null}
                   </div>
                 )}
               </CardContent>
@@ -665,9 +768,14 @@ export function StreamerObsSettingsView() {
           ))}
         </div>
 
-        {!levelsLoading && levels.length === 0 && streamerId && (
+        {!levelsLoading &&
+          apiLevels.length === 0 &&
+          streamerId &&
+          settingsRes?.success && (
           <p className="text-sm text-outline">
-            Chưa có mức donation. Nhấn &quot;Thêm mức&quot; để tạo trên server.
+            Chưa có mức donation tùy chỉnh. Dòng &quot;Cấu hình mặc định&quot;
+            phía trên dùng cấu hình gốc; nhấn &quot;Thêm mức&quot; để tạo thêm
+            trên server.
           </p>
         )}
       </div>
@@ -852,17 +960,24 @@ function CheckMini() {
   );
 }
 
-function SettingsForm({
-  levelRouteId,
-  configuration,
-}: {
-  levelRouteId: string;
-  configuration?: Record<string, unknown>;
-}) {
+function SettingsForm(
+  props:
+    | { scope: "global"; configuration?: Record<string, unknown> }
+    | {
+        scope: "level";
+        levelRouteId: string;
+        configuration?: Record<string, unknown>;
+      },
+) {
+  const isGlobal = props.scope === "global";
+  const levelRouteId = props.scope === "level" ? props.levelRouteId : "";
+  const configuration = props.configuration;
+
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploadMedia, { isLoading: uploading }] = useUploadMediaMutation();
   const [deleteMedia, { isLoading: deleting }] = useDeleteMediaMutation();
   const [updateLevel] = useUpdateDonationLevelMutation();
+  const [updateMySettings] = useUpdateMySettingsMutation();
 
   const imageSettings = configuration?.imageSettings as
     | { url?: string | null }
@@ -886,10 +1001,33 @@ function SettingsForm({
     [configuration],
   );
 
+  const persistMediaConfig = async (nextConfig: Record<string, unknown>) => {
+    if (isGlobal) {
+      const body: {
+        imageSettings?: ImageSettings;
+        soundSettings?: SoundSettings;
+      } = {};
+      if (nextConfig.imageSettings !== undefined) {
+        body.imageSettings = nextConfig.imageSettings as ImageSettings;
+      }
+      if (nextConfig.soundSettings !== undefined) {
+        body.soundSettings = nextConfig.soundSettings as SoundSettings;
+      }
+      await updateMySettings(body).unwrap();
+      return;
+    }
+    if (!levelRouteId) return;
+    await updateLevel({
+      levelId: levelRouteId,
+      body: { configuration: nextConfig },
+    }).unwrap();
+  };
+
   const onPickFile = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
-    if (!file || !levelRouteId) return;
+    if (!file) return;
+    if (!isGlobal && !levelRouteId) return;
     const mime = file.type || "";
     const mediaType = mime.startsWith("video")
       ? "video"
@@ -924,17 +1062,15 @@ function SettingsForm({
                 mediaType,
               },
             });
-      await updateLevel({
-        levelId: levelRouteId,
-        body: { configuration: nextConfig },
-      }).unwrap();
+      await persistMediaConfig(nextConfig);
     } catch (err) {
       console.warn(getMutationError(err));
     }
   };
 
   const onDeleteMedia = async () => {
-    if (!mediaUrl || !levelRouteId) return;
+    if (!mediaUrl) return;
+    if (!isGlobal && !levelRouteId) return;
     try {
       await deleteMedia(mediaUrl).unwrap();
       const nextConfig = soundUrl
@@ -954,14 +1090,13 @@ function SettingsForm({
               url: null,
             },
           });
-      await updateLevel({
-        levelId: levelRouteId,
-        body: { configuration: nextConfig },
-      }).unwrap();
+      await persistMediaConfig(nextConfig);
     } catch (err) {
       console.warn(getMutationError(err));
     }
   };
+
+  const canPersist = isGlobal || Boolean(levelRouteId);
 
   const Section = ({
     title,
@@ -1016,7 +1151,7 @@ function SettingsForm({
         <Section title="Media">
           <button
             type="button"
-            disabled={uploading || !levelRouteId}
+            disabled={uploading || !canPersist}
             onClick={() => fileRef.current?.click()}
             className="w-full border-2 border-dashed border-outline-variant/30 p-8 text-center text-outline bg-surface-container-lowest hover:bg-surface-container-lowest/80 disabled:opacity-50"
           >
@@ -1035,7 +1170,7 @@ function SettingsForm({
               type="button"
               variant="outline"
               className="border-outline rounded-none uppercase text-xs font-bold"
-              disabled={uploading || !levelRouteId}
+              disabled={uploading || !canPersist}
               onClick={() => fileRef.current?.click()}
             >
               <RefreshCw className="w-4 h-4 mr-2" /> Replace
@@ -1044,7 +1179,7 @@ function SettingsForm({
               type="button"
               variant="outline"
               className="border-outline rounded-none uppercase text-xs font-bold text-destructive"
-              disabled={deleting || !mediaUrl || !levelRouteId}
+              disabled={deleting || !mediaUrl || !canPersist}
               onClick={() => void onDeleteMedia()}
             >
               <Trash2 className="w-4 h-4 mr-2" /> Delete
