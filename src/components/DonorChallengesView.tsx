@@ -32,8 +32,7 @@ import { useGetMyDonorChallengesQuery } from "@/src/redux/queries/challenges.api
 import { useAuthSelector } from "@/src/redux/slices/auth.slice";
 import { isStreamerRole } from "@/src/utils/userRole";
 
-const AVATAR_FALLBACK =
-  "https://placehold.co/100x100/1a1a1a/666666?text=S";
+const AVATAR_FALLBACK = "https://placehold.co/100x100/1a1a1a/666666?text=S";
 
 const FETCH_LIMIT = 200;
 
@@ -54,10 +53,14 @@ interface DonorChallengeRow {
   timestamp: string;
 }
 
-function parseChallengesPayload(res: {
-  success?: boolean;
-  data?: unknown;
-} | undefined): Challenge[] {
+function parseChallengesPayload(
+  res:
+    | {
+        success?: boolean;
+        data?: unknown;
+      }
+    | undefined,
+): Challenge[] {
   if (!res?.data) return [];
   const inner = res.data;
   if (Array.isArray(inner)) return inner as Challenge[];
@@ -114,13 +117,9 @@ function challengeToRow(c: Challenge): DonorChallengeRow | null {
   const status = normalizeStatus(
     typeof c.status === "string" ? c.status : undefined,
   );
-  const ts = c.createdAt
-    ? dayjs(c.createdAt).format("YYYY-MM-DD HH:mm")
-    : "—";
-  const amt =
-    typeof c.amount === "number" ? c.amount : Number(c.amount) || 0;
-  const content =
-    typeof c.content === "string" && c.content ? c.content : "—";
+  const ts = c.createdAt ? dayjs(c.createdAt).format("YYYY-MM-DD HH:mm") : "—";
+  const amt = typeof c.amount === "number" ? c.amount : Number(c.amount) || 0;
+  const content = typeof c.content === "string" && c.content ? c.content : "—";
   return {
     id,
     streamer: { name, avatar },
@@ -174,13 +173,17 @@ export function DonorChallengesView() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
 
-  const { data: chRes, isLoading, isFetching, isError } =
-    useGetMyDonorChallengesQuery(
-      { page: 1, limit: FETCH_LIMIT },
-      {
-        skip: !isAuthenticated || isStreamerRole(role),
-      },
-    );
+  const {
+    data: chRes,
+    isLoading,
+    isFetching,
+    isError,
+  } = useGetMyDonorChallengesQuery(
+    { page: 1, limit: FETCH_LIMIT },
+    {
+      skip: !isAuthenticated || isStreamerRole(role),
+    },
+  );
 
   const rows = useMemo(() => {
     const list = parseChallengesPayload(chRes);
@@ -248,11 +251,11 @@ export function DonorChallengesView() {
               THỬ THÁCH CỦA TÔI
             </h2>
             <p className="text-[10px] font-mono text-outline tracking-widest uppercase">
-              GET /challenges/donor/me
+              Quản lý và theo dõi các thử thách
             </p>
-            <p className="text-[9px] font-mono text-outline/80 tracking-wide">
+            {/* <p className="text-[9px] font-mono text-outline/80 tracking-wide">
               Tối đa {FETCH_LIMIT} bản ghi — lọc trên trình duyệt.
-            </p>
+            </p> */}
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -267,22 +270,40 @@ export function DonorChallengesView() {
                 <SelectValue placeholder="TRẠNG THÁI" />
               </SelectTrigger>
               <SelectContent className="bg-surface-container-low border-outline-variant/20 rounded-none">
-                <SelectItem value="all" className="text-[10px] font-bold uppercase">
+                <SelectItem
+                  value="all"
+                  className="text-[10px] font-bold uppercase"
+                >
                   TẤT CẢ
                 </SelectItem>
-                <SelectItem value="pending" className="text-[10px] font-bold uppercase">
+                <SelectItem
+                  value="pending"
+                  className="text-[10px] font-bold uppercase"
+                >
                   CHỜ DUYỆT
                 </SelectItem>
-                <SelectItem value="approved" className="text-[10px] font-bold uppercase">
+                <SelectItem
+                  value="approved"
+                  className="text-[10px] font-bold uppercase"
+                >
                   ĐANG LÀM
                 </SelectItem>
-                <SelectItem value="rejected" className="text-[10px] font-bold uppercase">
+                <SelectItem
+                  value="rejected"
+                  className="text-[10px] font-bold uppercase"
+                >
                   TỪ CHỐI
                 </SelectItem>
-                <SelectItem value="completed" className="text-[10px] font-bold uppercase">
+                <SelectItem
+                  value="completed"
+                  className="text-[10px] font-bold uppercase"
+                >
                   HOÀN THÀNH
                 </SelectItem>
-                <SelectItem value="failed" className="text-[10px] font-bold uppercase">
+                <SelectItem
+                  value="failed"
+                  className="text-[10px] font-bold uppercase"
+                >
                   THẤT BẠI
                 </SelectItem>
               </SelectContent>
@@ -299,22 +320,40 @@ export function DonorChallengesView() {
                 <SelectValue placeholder="MỨC TIỀN" />
               </SelectTrigger>
               <SelectContent className="bg-surface-container-low border-outline-variant/20 rounded-none">
-                <SelectItem value="all" className="text-[10px] font-bold uppercase">
+                <SelectItem
+                  value="all"
+                  className="text-[10px] font-bold uppercase"
+                >
                   TẤT CẢ MỨC
                 </SelectItem>
-                <SelectItem value="under100" className="text-[10px] font-bold uppercase">
+                <SelectItem
+                  value="under100"
+                  className="text-[10px] font-bold uppercase"
+                >
                   DƯỚI 100K
                 </SelectItem>
-                <SelectItem value="100-500" className="text-[10px] font-bold uppercase">
+                <SelectItem
+                  value="100-500"
+                  className="text-[10px] font-bold uppercase"
+                >
                   100K - 500K
                 </SelectItem>
-                <SelectItem value="500-1m" className="text-[10px] font-bold uppercase">
+                <SelectItem
+                  value="500-1m"
+                  className="text-[10px] font-bold uppercase"
+                >
                   500K - 1M
                 </SelectItem>
-                <SelectItem value="1m-5m" className="text-[10px] font-bold uppercase">
+                <SelectItem
+                  value="1m-5m"
+                  className="text-[10px] font-bold uppercase"
+                >
                   1M - 5M
                 </SelectItem>
-                <SelectItem value="over5m" className="text-[10px] font-bold uppercase">
+                <SelectItem
+                  value="over5m"
+                  className="text-[10px] font-bold uppercase"
+                >
                   TRÊN 5M
                 </SelectItem>
               </SelectContent>
@@ -331,10 +370,16 @@ export function DonorChallengesView() {
                 <SelectValue placeholder="SẮP XẾP" />
               </SelectTrigger>
               <SelectContent className="bg-surface-container-low border-outline-variant/20 rounded-none">
-                <SelectItem value="newest" className="text-[10px] font-bold uppercase">
+                <SelectItem
+                  value="newest"
+                  className="text-[10px] font-bold uppercase"
+                >
                   MỚI NHẤT
                 </SelectItem>
-                <SelectItem value="highest" className="text-[10px] font-bold uppercase">
+                <SelectItem
+                  value="highest"
+                  className="text-[10px] font-bold uppercase"
+                >
                   TIỀN CAO
                 </SelectItem>
               </SelectContent>
@@ -453,7 +498,9 @@ export function DonorChallengesView() {
                         if (currentPage > 1) setCurrentPage((p) => p - 1);
                       }}
                       className={
-                        currentPage === 1 ? "pointer-events-none opacity-50" : ""
+                        currentPage === 1
+                          ? "pointer-events-none opacity-50"
+                          : ""
                       }
                     />
                   </PaginationItem>

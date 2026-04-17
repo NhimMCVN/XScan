@@ -25,21 +25,22 @@ export interface WalletMe {
   updatedAt: string;
 }
 
-/** GET /deposit-config — cấu hình nạp (tiền tệ hỗ trợ, v.v.) */
+/** GET /deposit-config — PublicDepositConfigDTO (OpenAPI) */
 export interface DepositConfig {
-  supportedCurrencies: string[];
+  supportedCurrencies?: string[];
 }
 
-/** POST /wallets/deposit — tạo VietQR / thông tin CK nạp ví */
+/** POST /wallets/deposit — DepositQRRequestDTO */
 export interface WalletDepositQrRequest {
   amount: number;
   currency: string;
 }
 
+/** POST /wallets/deposit — DepositQRResponseDTO */
 export interface WalletDepositQrData {
   accountName?: string;
   accountNumber?: string;
-  /** Nội dung chuyển khoản đầy đủ */
+  /** Nội dung CK đầy đủ (prefix + mã + currency + prefix) */
   addInfo?: string;
   amount?: number;
   bankName?: string;
