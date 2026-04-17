@@ -17,12 +17,20 @@ import { AuthView } from "./components/AuthView";
 import { useAppDispatch, type RootState } from "./redux";
 import { logout } from "./redux/slices/auth.slice";
 import { isStreamerRole } from "./utils/userRole";
+import {
+  getInitialViewFromLocation,
+  pathFromView,
+  pathsEqual,
+  viewFromPathname,
+} from "./utils/appNavigation";
 
 export default function App() {
   const dispatch = useAppDispatch();
   const isAuthenticated = useSelector((s: RootState) => s.auth.isAuthenticated);
   const userRole = useSelector((s: RootState) => s.auth.user?.role);
-  const [currentView, setCurrentView] = useState("MATCHES");
+  const [currentView, setCurrentView] = useState(() =>
+    typeof window !== "undefined" ? getInitialViewFromLocation() : "MATCHES",
+  );
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [role, setRole] = useState<"USER" | "STREAMER">("USER");
 
@@ -40,13 +48,32 @@ export default function App() {
     return () => window.removeEventListener("navigate", handleNavigate);
   }, [dispatch]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const desired = pathFromView(currentView);
+    if (pathsEqual(window.location.pathname, desired)) return;
+    window.history.replaceState(
+      null,
+      "",
+      `${desired}${window.location.search}`,
+    );
+  }, [currentView]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      setCurrentView(viewFromPathname(window.location.pathname));
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
   if (!isAuthenticated) {
     return <AuthView />;
   }
 
   return (
     <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
-      <TopNav />
+      <TopNav currentView={currentView} />
       <div className="flex flex-1 overflow-hidden">
         {currentView !== "STREAMERS" &&
           currentView !== "PROFILE" &&

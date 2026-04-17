@@ -1,40 +1,70 @@
 import { Search, LogOut, Wallet } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { pathFromView } from "@/src/utils/appNavigation";
 
-export function TopNav() {
+const NAV_ITEMS = [
+  { id: "MATCHES", label: "TRẬN ĐẤU" },
+  { id: "STREAMERS", label: "STREAMER" },
+  { id: "STREAMER_CHALLENGES", label: "CHALLENGE" },
+  { id: "BECOME_STREAMER", label: "TRỞ THÀNH STREAMER" },
+] as const;
+
+interface TopNavProps {
+  currentView: string;
+}
+
+export function TopNav({ currentView }: TopNavProps) {
   return (
     <nav className="h-16 border-b border-outline-variant/10 bg-surface flex items-center justify-between px-6 sticky top-0 z-50">
       <div className="flex items-center gap-8">
-        <div 
+        <div
           className="flex items-center gap-2 cursor-pointer group"
-          onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'MATCHES' }))}
+          onClick={() =>
+            window.dispatchEvent(new CustomEvent("navigate", { detail: "MATCHES" }))
+          }
         >
           <div className="w-8 h-8 bg-primary flex items-center justify-center rotate-45 group-hover:scale-110 transition-transform">
             <span className="text-on-primary font-bold text-xl -rotate-45">X</span>
           </div>
-          <span className="font-display font-bold text-2xl tracking-tighter italic text-primary group-hover:text-primary/80 transition-colors">XScan</span>
+          <span
+            className={cn(
+              "font-display font-bold text-2xl tracking-tighter italic transition-colors",
+              currentView === "MATCHES"
+                ? "text-primary"
+                : "text-primary/75 group-hover:text-primary",
+            )}
+          >
+            XScan
+          </span>
         </div>
-        
+
         <div className="hidden md:flex items-center gap-6">
-          {[
-            { id: 'MATCHES', label: 'TRẬN ĐẤU' },
-            { id: 'STREAMERS', label: 'STREAMER' },
-            { id: 'STREAMER_CHALLENGES', label: 'CHALLENGE' },
-            { id: 'BECOME_STREAMER', label: 'TRỞ THÀNH STREAMER' }
-          ].map((item) => (
-            <a 
-              key={item.id}
-              href="#" 
-              onClick={(e) => {
-                e.preventDefault();
-                window.dispatchEvent(new CustomEvent('navigate', { detail: item.id }));
-              }}
-              className="text-outline hover:text-primary transition-colors font-bold pb-1 px-1 text-xs tracking-widest uppercase"
-            >
-              {item.label}
-            </a>
-          ))}
+          {NAV_ITEMS.map((item) => {
+            const active = currentView === item.id;
+            return (
+              <a
+                key={item.id}
+                href={pathFromView(item.id)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.dispatchEvent(
+                    new CustomEvent("navigate", { detail: item.id }),
+                  );
+                }}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "font-bold px-1 text-xs tracking-widest uppercase transition-colors",
+                  active
+                    ? "text-primary"
+                    : "text-outline hover:text-primary",
+                )}
+              >
+                {item.label}
+              </a>
+            );
+          })}
         </div>
       </div>
 
@@ -66,9 +96,19 @@ export function TopNav() {
           <span className="text-[10px] font-bold text-primary tracking-tight">2,450,000 VND</span>
         </div>
 
-        <button 
-          onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'PROFILE' }))}
-          className="w-10 h-10 border border-outline-variant/30 bg-surface-container-high p-0.5 hover:border-primary transition-all cursor-pointer"
+        <button
+          type="button"
+          onClick={() =>
+            window.dispatchEvent(new CustomEvent("navigate", { detail: "PROFILE" }))
+          }
+          aria-label="Hồ sơ"
+          aria-current={currentView === "PROFILE" ? "page" : undefined}
+          className={cn(
+            "w-10 h-10 border bg-surface-container-high p-0.5 transition-all cursor-pointer",
+            currentView === "PROFILE"
+              ? "border-primary"
+              : "border-outline-variant/30 hover:border-primary",
+          )}
         >
           <div className="w-full h-full bg-surface-container overflow-hidden">
             <img 
