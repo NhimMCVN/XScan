@@ -78,6 +78,25 @@ function isRefreshUnauthorized(
   return s === 401 || s === 403;
 }
 
+/** BE đôi khi trả HTTP 200 + success:false + error.code — coi là refresh thất bại, có thể logout */
+function shouldLogoutOnRefreshBody(data: unknown): boolean {
+  if (!data || typeof data !== "object") return false;
+  const root = data as Record<string, unknown>;
+  if (root.success !== false) return false;
+  const errObj = root.error;
+  if (!errObj || typeof errObj !== "object") return false;
+  const code = String(
+    (errObj as Record<string, unknown>).code || "",
+  ).toUpperCase();
+  return (
+    code === "UNAUTHORIZED" ||
+    code === "INVALID_TOKEN" ||
+    code === "TOKEN_EXPIRED" ||
+    code === "REFRESH_TOKEN_EXPIRED" ||
+    code === "REFRESH_TOKEN_INVALID"
+  );
+}
+
 function runRefresh(
   api: Parameters<BaseQueryFn>[1],
   refreshtk: string,
@@ -85,7 +104,7 @@ function runRefresh(
 ): Promise<string | null> {
   if (!refreshInFlight) {
     refreshInFlight = (async () => {
-      const refreshResult = await rawBaseQuery(
+      const refreshResultRaw = await rawBaseQuery(
         {
           url: "/auth/refresh",
           method: "POST",
@@ -98,10 +117,18 @@ function runRefresh(
         extraOptions,
       );
 
+      let refreshResult = refreshResultRaw;
+      refreshResult = normalizeBusinessUnauthorized(refreshResult) as typeof refreshResult;
+
       if (refreshResult.error) {
         if (isRefreshUnauthorized(refreshResult.error as FetchBaseQueryError)) {
           api.dispatch(logout());
         }
+        return null;
+      }
+
+      if (shouldLogoutOnRefreshBody(refreshResult.data)) {
+        api.dispatch(logout());
         return null;
       }
 
