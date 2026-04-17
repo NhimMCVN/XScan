@@ -121,7 +121,7 @@ export function WalletQuickDepositPanel({
     if (parsedAmount == null) return "";
     const n = parsedAmount.toLocaleString("vi-VN");
     if (currency === "VND") {
-      return `Nạp ${n} VND — sau khi xác nhận bạn nhận ${n} GEM (tỷ giá hệ thống: 1.000 VND = 1.000 GEM).`;
+      return `Nạp ${n} VND — số tiền và nội dung CK theo mã VietQR bên dưới).`;
     }
     return `Nạp ${n} GEM — bạn chuyển khoản ${n} VND tương ứng (1.000 VND = 1.000 GEM). Số tiền và nội dung CK theo mã VietQR bên dưới.`;
   }, [parsedAmount, currency]);
