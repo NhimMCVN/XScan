@@ -430,10 +430,13 @@ export function StreamerObsSettingsView() {
   const [addUnlimited, setAddUnlimited] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [addSaving, setAddSaving] = useState(false);
+  /** Đang đồng bộ nhiều API (toggle level / default / copy) — hiện overlay để tránh cảm giác lag. */
+  const [obsSelectionSyncBusy, setObsSelectionSyncBusy] = useState(false);
 
   /** Radio-style: chỉ một donation level được `isEnabled` tại một thời điểm. */
   const toggleLevelActive = async (routeId: string, next: boolean) => {
     if (!routeId) return;
+    setObsSelectionSyncBusy(true);
     try {
       if (next) {
         const otherIds = apiLevels
@@ -466,10 +469,18 @@ export function StreamerObsSettingsView() {
       }
     } catch (e) {
       console.warn(getMutationError(e));
+    } finally {
+      try {
+        await refetchDonationLevels();
+      } catch {
+        /* ignore */
+      }
+      setObsSelectionSyncBusy(false);
     }
   };
 
   const toggleGlobalWidgetActive = async (next: boolean) => {
+    setObsSelectionSyncBusy(true);
     try {
       if (next) {
         const ids = apiLevels
@@ -485,6 +496,13 @@ export function StreamerObsSettingsView() {
       await refetchSettings();
     } catch (e) {
       console.warn(getMutationError(e));
+    } finally {
+      try {
+        await refetchDonationLevels();
+      } catch {
+        /* ignore */
+      }
+      setObsSelectionSyncBusy(false);
     }
   };
 
@@ -537,6 +555,7 @@ export function StreamerObsSettingsView() {
     const srcMin = Number(src.minAmount) || 0;
     const srcMax =
       src.maxAmount != null ? Number(src.maxAmount) : UNLIMITED_MAX_SENTINEL;
+    setObsSelectionSyncBusy(true);
     try {
       const createRes = await addLevel({
         levelName: newName,
@@ -600,6 +619,8 @@ export function StreamerObsSettingsView() {
       await refetchDonationLevels();
     } catch (e) {
       console.warn(getMutationError(e));
+    } finally {
+      setObsSelectionSyncBusy(false);
     }
   };
 
@@ -876,6 +897,7 @@ export function StreamerObsSettingsView() {
           </div>
           <Button
             type="button"
+            disabled={obsSelectionSyncBusy}
             onClick={() => {
               setAddError(null);
               setIsAddLevelOpen(true);
@@ -893,7 +915,15 @@ export function StreamerObsSettingsView() {
           </div>
         )}
 
-        <div className="space-y-4">
+        <div className="relative space-y-4">
+          {obsSelectionSyncBusy && (
+            <div className="absolute inset-0 z-10 flex items-start justify-center rounded-sm bg-background/50 pt-16 backdrop-blur-[1px]">
+              <div className="flex items-center gap-2 border border-outline-variant/30 bg-surface-container-low px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-foreground shadow-sm">
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+                Đang cập nhật…
+              </div>
+            </div>
+          )}
           {displayRows.map((row) => (
             <Card
               key={row.listKey}
@@ -903,10 +933,17 @@ export function StreamerObsSettingsView() {
                 <div className="flex items-center justify-between gap-2 p-4">
                   <div
                     role="button"
-                    tabIndex={0}
-                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-4 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                    onClick={() => toggleRowOpen(row.listKey)}
+                    tabIndex={obsSelectionSyncBusy ? -1 : 0}
+                    className={`flex min-w-0 flex-1 items-center gap-4 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+                      obsSelectionSyncBusy
+                        ? "cursor-wait opacity-60"
+                        : "cursor-pointer"
+                    }`}
+                    onClick={() => {
+                      if (!obsSelectionSyncBusy) toggleRowOpen(row.listKey);
+                    }}
                     onKeyDown={(e) => {
+                      if (obsSelectionSyncBusy) return;
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
                         toggleRowOpen(row.listKey);
@@ -955,7 +992,10 @@ export function StreamerObsSettingsView() {
                           ? row.widgetActive
                           : row.active
                       }
-                      disabled={row.kind === "level" && !row.persisted}
+                      disabled={
+                        obsSelectionSyncBusy ||
+                        (row.kind === "level" && !row.persisted)
+                      }
                       onClick={(e) => e.stopPropagation()}
                       onPointerDown={(e) => e.stopPropagation()}
                       onCheckedChange={(v) => {
@@ -973,7 +1013,9 @@ export function StreamerObsSettingsView() {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      disabled={!selectedWidgetDisplayUrl}
+                      disabled={
+                        obsSelectionSyncBusy || !selectedWidgetDisplayUrl
+                      }
                       onClick={(e) => {
                         e.stopPropagation();
                         if (selectedWidgetDisplayUrl)
@@ -992,7 +1034,7 @@ export function StreamerObsSettingsView() {
                           type="button"
                           variant="ghost"
                           size="icon"
-                          disabled={!row.persisted}
+                          disabled={obsSelectionSyncBusy || !row.persisted}
                           onClick={(e) => {
                             e.stopPropagation();
                             void cloneLevel(row.routeId);
@@ -1004,7 +1046,7 @@ export function StreamerObsSettingsView() {
                           type="button"
                           variant="ghost"
                           size="icon"
-                          disabled={!row.persisted}
+                          disabled={obsSelectionSyncBusy || !row.persisted}
                           onClick={(e) => {
                             e.stopPropagation();
                             openEditLevel(row);
@@ -1017,7 +1059,11 @@ export function StreamerObsSettingsView() {
                           variant="ghost"
                           size="icon"
                           className="text-destructive"
-                          disabled={apiLevels.length <= 1 || !row.persisted}
+                          disabled={
+                            obsSelectionSyncBusy ||
+                            apiLevels.length <= 1 ||
+                            !row.persisted
+                          }
                           onClick={(e) => {
                             e.stopPropagation();
                             setLevelToDeleteRouteId(row.routeId);
