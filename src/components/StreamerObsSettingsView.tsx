@@ -99,6 +99,21 @@ function parseDonationLevelsPayload(
   return [];
 }
 
+/** POST /donation-levels có thể trả DTO phẳng hoặc bọc trong `level` / `data`. */
+function tryParseCreatedDonationLevelId(res: unknown): string {
+  if (!res || typeof res !== "object") return "";
+  const r = res as ApiResponse<unknown>;
+  if (!r.success || r.data == null) return "";
+  const data = r.data;
+  if (typeof data !== "object" || data === null) return "";
+  const o = data as Record<string, unknown>;
+  const nested = o.level ?? o.donationLevel ?? o.item;
+  if (nested && typeof nested === "object") {
+    return donationLevelRouteId(nested as DonationLevelDTO);
+  }
+  return donationLevelRouteId(data as DonationLevelDTO);
+}
+
 function donationLevelRouteId(d: DonationLevelDTO): string {
   return String(
     d.levelId ??
@@ -106,6 +121,35 @@ function donationLevelRouteId(d: DonationLevelDTO): string {
       (d as { _id?: string })._id ??
       "",
   );
+}
+
+/**
+ * Thứ tự hiển thị cố định trên FE: sau toggle/refetch BE có thể đổi thứ tự (vd. theo `updatedAt`);
+ * sort theo createdAt → min → max → tên → id để vị trí các dòng không nhảy.
+ */
+function compareDonationLevelsStable(a: DonationLevelDTO, b: DonationLevelDTO): number {
+  const ca = typeof a.createdAt === "string" ? Date.parse(a.createdAt) : NaN;
+  const cb = typeof b.createdAt === "string" ? Date.parse(b.createdAt) : NaN;
+  if (!Number.isNaN(ca) && !Number.isNaN(cb) && ca !== cb) return ca - cb;
+  if (!Number.isNaN(ca) && Number.isNaN(cb)) return -1;
+  if (Number.isNaN(ca) && !Number.isNaN(cb)) return 1;
+
+  const minA = Number(a.minAmount) || 0;
+  const minB = Number(b.minAmount) || 0;
+  if (minA !== minB) return minA - minB;
+
+  const maxA =
+    a.maxAmount != null ? Number(a.maxAmount) : UNLIMITED_MAX_SENTINEL;
+  const maxB =
+    b.maxAmount != null ? Number(b.maxAmount) : UNLIMITED_MAX_SENTINEL;
+  if (maxA !== maxB) return maxA - maxB;
+
+  const nameA = a.levelName || "";
+  const nameB = b.levelName || "";
+  const nc = nameA.localeCompare(nameB, "vi", { sensitivity: "base" });
+  if (nc !== 0) return nc;
+
+  return donationLevelRouteId(a).localeCompare(donationLevelRouteId(b));
 }
 
 function maxAmountToUi(maxAmount: number | undefined): number {
@@ -285,15 +329,15 @@ export function StreamerObsSettingsView() {
     refetchSettings,
   ]);
 
-  const { data: levelsRes, isLoading: levelsLoading } =
+  const { data: levelsRes, isLoading: levelsLoading, refetch: refetchDonationLevels } =
     useGetDonationLevelsQuery(undefined, {
       skip: profileLoading || !streamerId,
     });
 
-  const apiLevels = useMemo(
-    () => parseDonationLevelsPayload(levelsRes),
-    [levelsRes],
-  );
+  const apiLevels = useMemo(() => {
+    const raw = parseDonationLevelsPayload(levelsRes);
+    return [...raw].sort(compareDonationLevelsStable);
+  }, [levelsRes]);
 
   const [openByListKey, setOpenByListKey] = useState<Record<string, boolean>>(
     {},
@@ -406,8 +450,6 @@ export function StreamerObsSettingsView() {
         }).unwrap();
         await updateMySettings({ isActive: false }).unwrap();
         await refetchSettings();
-        const row = donationLevelsUi.find((l) => l.routeId === routeId);
-        if (row) setOpenByListKey({ [row.listKey]: true });
       } else {
         await updateLevel({
           levelId: routeId,
@@ -420,7 +462,6 @@ export function StreamerObsSettingsView() {
         if (!othersStillOn) {
           await updateMySettings({ isActive: true }).unwrap();
           await refetchSettings();
-          setOpenByListKey({ [OBS_GLOBAL_DEFAULT_LIST_KEY]: true });
         }
       }
     } catch (e) {
@@ -442,15 +483,12 @@ export function StreamerObsSettingsView() {
       }
       await updateMySettings({ isActive: next }).unwrap();
       await refetchSettings();
-      if (next) {
-        setOpenByListKey({ [OBS_GLOBAL_DEFAULT_LIST_KEY]: true });
-      }
     } catch (e) {
       console.warn(getMutationError(e));
     }
   };
 
-  /** Không còn mức donation nào bật → bật widget mặc định + mở accordion default. */
+  /** Không còn mức donation nào bật → bật widget mặc định (`isActive`). Collapse chỉ do user bấm vùng trái card. */
   useEffect(() => {
     if (
       !settingsRes?.success ||
@@ -476,11 +514,6 @@ export function StreamerObsSettingsView() {
         }
       })();
     }
-
-    setOpenByListKey((prev) => {
-      if (prev[OBS_GLOBAL_DEFAULT_LIST_KEY]) return prev;
-      return { ...prev, [OBS_GLOBAL_DEFAULT_LIST_KEY]: true };
-    });
   }, [
     apiLevels,
     settings,
@@ -495,18 +528,76 @@ export function StreamerObsSettingsView() {
   const cloneLevel = async (routeId: string) => {
     const src = apiLevels.find((d) => donationLevelRouteId(d) === routeId);
     if (!src) return;
+    const newName = `${src.levelName || "Mức"} (Copy)`;
+    const oldIds = new Set(
+      apiLevels
+        .map((d) => donationLevelRouteId(d))
+        .filter((id): id is string => Boolean(id)),
+    );
+    const srcMin = Number(src.minAmount) || 0;
+    const srcMax =
+      src.maxAmount != null ? Number(src.maxAmount) : UNLIMITED_MAX_SENTINEL;
     try {
-      await addLevel({
-        levelName: `${src.levelName || "Mức"} (Copy)`,
-        minAmount: Number(src.minAmount) || 0,
-        maxAmount:
-          src.maxAmount != null
-            ? Number(src.maxAmount)
-            : UNLIMITED_MAX_SENTINEL,
+      const createRes = await addLevel({
+        levelName: newName,
+        minAmount: srcMin,
+        maxAmount: srcMax,
         currency: src.currency || "VND",
-        isEnabled: src.isEnabled !== false,
+        isEnabled: false,
         configuration: src.configuration,
       }).unwrap();
+
+      let newRouteId = tryParseCreatedDonationLevelId(createRes);
+
+      const refetchRes = await refetchDonationLevels();
+      const list = parseDonationLevelsPayload(
+        refetchRes.data as ApiResponse<{ donationLevels?: DonationLevelDTO[] }>,
+      );
+
+      if (!newRouteId) {
+        const newcomers = list.filter((d) => {
+          const id = donationLevelRouteId(d);
+          return Boolean(id) && !oldIds.has(id);
+        });
+        const nameMatches = newcomers.filter(
+          (d) => (d.levelName || "") === newName,
+        );
+        const picked =
+          nameMatches.length === 1
+            ? nameMatches[0]
+            : nameMatches.find(
+                (d) =>
+                  Number(d.minAmount) === srcMin &&
+                  (d.maxAmount != null
+                    ? Number(d.maxAmount)
+                    : UNLIMITED_MAX_SENTINEL) === srcMax,
+              ) ??
+              nameMatches.at(-1) ??
+              newcomers.at(-1);
+        newRouteId = picked ? donationLevelRouteId(picked) : "";
+      }
+
+      if (!newRouteId) {
+        console.warn("[cloneLevel] Không xác định được mức mới sau refetch.");
+        return;
+      }
+
+      /** Giống bật toggle thủ công: tắt các mức khác, chỉ bật mức vừa copy (không PUT toàn bộ danh sách). */
+      const otherIds = list
+        .map((d) => donationLevelRouteId(d))
+        .filter((id): id is string => Boolean(id) && id !== newRouteId);
+      await Promise.all(
+        otherIds.map((id) =>
+          updateLevel({ levelId: id, body: { isEnabled: false } }).unwrap(),
+        ),
+      );
+      await updateLevel({
+        levelId: newRouteId,
+        body: { isEnabled: true },
+      }).unwrap();
+      await updateMySettings({ isActive: false }).unwrap();
+      await refetchSettings();
+      await refetchDonationLevels();
     } catch (e) {
       console.warn(getMutationError(e));
     }
@@ -606,7 +697,8 @@ export function StreamerObsSettingsView() {
         minAmount: minN,
         maxAmount: uiMaxToApiMax(maxN, addUnlimited),
         currency: "VND",
-        isEnabled: true,
+        /** Mới tạo luôn tắt — user bật toggle để chọn (radio một mức). */
+        isEnabled: false,
       }).unwrap();
       setIsAddLevelOpen(false);
       setAddName("");
@@ -808,15 +900,27 @@ export function StreamerObsSettingsView() {
               className="bg-surface-container-low border-outline-variant/20 rounded-none"
             >
               <CardContent className="p-0">
-                <div className="p-4 flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2 p-4">
                   <div
-                    className="flex items-center gap-4 cursor-pointer flex-1"
+                    role="button"
+                    tabIndex={0}
+                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-4 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                     onClick={() => toggleRowOpen(row.listKey)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        toggleRowOpen(row.listKey);
+                      }
+                    }}
                   >
-                    <Button variant="ghost" size="icon">
-                      {row.isOpen ? <ChevronUp /> : <ChevronDown />}
-                    </Button>
-                    <div>
+                    <span className="inline-flex shrink-0 text-outline">
+                      {row.isOpen ? (
+                        <ChevronUp className="size-5" />
+                      ) : (
+                        <ChevronDown className="size-5" />
+                      )}
+                    </span>
+                    <div className="min-w-0 flex-1">
                       {row.kind === "global" ? (
                         <>
                           <p className="font-bold">Cấu hình mặc định</p>
@@ -840,7 +944,11 @@ export function StreamerObsSettingsView() {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div
+                    className="flex shrink-0 items-center gap-2"
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
                     <Switch
                       checked={
                         row.kind === "global"
@@ -848,12 +956,18 @@ export function StreamerObsSettingsView() {
                           : row.active
                       }
                       disabled={row.kind === "level" && !row.persisted}
+                      onClick={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
                       onCheckedChange={(v) => {
                         if (row.kind === "global")
                           void toggleGlobalWidgetActive(v);
                         else void toggleLevelActive(row.routeId, v);
                       }}
-                      className="data-[state=checked]:bg-primary data-[state=unchecked]:bg-gray-500"
+                      className={
+                        row.kind === "global"
+                          ? "data-checked:bg-primary dark:data-checked:bg-primary data-unchecked:bg-muted data-unchecked:border data-unchecked:border-outline-variant/50 dark:data-unchecked:bg-zinc-600 dark:data-unchecked:border-zinc-500/60"
+                          : "data-checked:bg-primary data-unchecked:bg-gray-500 dark:data-unchecked:bg-gray-600"
+                      }
                     />
                     <Button
                       type="button"
