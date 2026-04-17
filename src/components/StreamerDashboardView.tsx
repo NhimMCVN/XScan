@@ -1,18 +1,17 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import dayjs from "dayjs";
 import { motion, AnimatePresence } from "motion/react";
-import { 
-  User, 
-  Mail, 
-  ShieldCheck, 
-  Wallet, 
-  Zap, 
-  Copy, 
-  Check, 
-  QrCode, 
+import {
+  Wallet,
+  Zap,
+  Copy,
+  Check,
+  QrCode,
   X,
   CreditCard,
   ArrowRight,
   AlertCircle,
+  Loader2,
   DollarSign,
   ChevronDown,
   ChevronUp,
@@ -22,7 +21,7 @@ import {
   Facebook,
   Twitter,
   Instagram,
-  Youtube
+  Youtube,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,14 +29,27 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DepositHistoryDrawer } from "./DepositHistoryDrawer";
+import { ProfileDashboardHeader } from "./ProfileDashboardHeader";
+import { useGetProfileQuery } from "@/src/redux/queries/user.api";
+import { useGetStreamerDonationsQuery } from "@/src/redux/queries/donate.api";
+import type { DonationRecord } from "@/src/redux/queries/donate.api";
+import {
+  useGetMyStreamerChallengesQuery,
+  type Challenge,
+} from "@/src/redux/queries/challenges.api";
+import {
+  useGetTransactionHistoryQuery,
+  unwrapTransactionHistory,
+  type UnifiedTransactionItem,
+} from "@/src/redux/queries/wallet.api";
 
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import {
   Pagination,
@@ -48,35 +60,265 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 
-const DEPOSIT_HISTORY = [
-  { id: "DEP-001", amount: 500000, currency: 'VND', time: "2 PHÚT TRƯỚC", status: 'completed' },
-  { id: "DEP-002", amount: 100, currency: 'GEM', time: "15 PHÚT TRƯỚC", status: 'completed' },
-  { id: "DEP-003", amount: 200000, currency: 'VND', time: "22 PHÚT TRƯỚC", status: 'failed' },
-  { id: "DEP-004", amount: 50, currency: 'GEM', time: "45 PHÚT TRƯỚC", status: 'pending' },
-  { id: "DEP-005", amount: 1000000, currency: 'VND', time: "1 GIỜ TRƯỚC", status: 'completed' },
-];
+const SIDEBAR_FETCH_LIMIT = 200;
+const WITHDRAW_HISTORY_FETCH = 100;
 
-const CREATED_CHALLENGES = [
-  { id: "CH-001", streamer: "NINJA_X", amount: 50000, content: "Sử dụng rìu trong trận tiếp theo", status: 'completed', time: "1 NGÀY TRƯỚC" },
-  { id: "CH-002", streamer: "TACTICAL_SAM", amount: 150000, content: "Chỉ dùng súng lục suốt hiệp", status: 'pending', time: "2 GIỜ TRƯỚC" },
-];
+function parseStreamerChallengesPayload(
+  res: { success?: boolean; data?: unknown } | undefined,
+): Challenge[] {
+  if (!res?.data) return [];
+  const inner = res.data;
+  if (Array.isArray(inner)) return inner as Challenge[];
+  if (typeof inner === "object") {
+    const o = inner as Record<string, unknown>;
+    const arr = o.data ?? o.items;
+    if (Array.isArray(arr)) return arr as Challenge[];
+  }
+  return [];
+}
 
-const DONATION_HISTORY = [
-  { id: "DON-001", streamer: "ZEN_VOID", amount: 200000, message: "Great stream!", time: "3 NGÀY TRƯỚC" },
-  { id: "DON-002", streamer: "RAPTOR_7", amount: 500000, message: "Insane skills", time: "5 NGÀY TRƯỚC" },
-];
+function parseStreamerDonationsPayload(
+  res: { success?: boolean; data?: unknown } | undefined,
+): DonationRecord[] {
+  if (res?.success === false) return [];
+  if (!res?.data) return [];
+  const inner = res.data;
+  if (Array.isArray(inner)) return inner as DonationRecord[];
+  if (typeof inner === "object") {
+    const o = inner as Record<string, unknown>;
+    const arr = o.data ?? o.items;
+    if (Array.isArray(arr)) return arr as DonationRecord[];
+  }
+  return [];
+}
+
+/** Trạng thái UI — đồng bộ logic với StreamerChallengesView */
+function normalizeChallengeStatus(raw?: string) {
+  const u = (raw || "").toLowerCase().replace(/\s+/g, "_");
+  if (
+    u === "pending" ||
+    u === "created" ||
+    u === "open" ||
+    u === "awaiting_streamer" ||
+    u === "awaitingacceptance"
+  )
+    return "pending" as const;
+  if (
+    u === "accepted" ||
+    u === "approved" ||
+    u === "in_progress" ||
+    u === "active" ||
+    u === "ongoing"
+  )
+    return "accepted" as const;
+  if (u === "completed" || u === "success") return "completed" as const;
+  if (u === "rejected" || u === "cancelled" || u === "canceled")
+    return "rejected" as const;
+  if (u === "failed" || u === "failure") return "failed" as const;
+  return "unknown" as const;
+}
+
+function donationCountsAsRevenue(d: DonationRecord): boolean {
+  const s = String(d.status ?? "").toLowerCase();
+  if (
+    !s ||
+    s === "completed" ||
+    s === "success" ||
+    s === "paid" ||
+    s === "confirmed"
+  )
+    return true;
+  return false;
+}
+
+function formatActivityTime(iso?: string) {
+  if (!iso) return "—";
+  const d = dayjs(iso);
+  if (!d.isValid()) return String(iso);
+  return d.format("DD/MM/YYYY HH:mm");
+}
+
+function txRowId(row: UnifiedTransactionItem): string {
+  const id = row._id ?? row.id ?? row.reference ?? row.referenceCode;
+  return id != null ? String(id) : "—";
+}
+
+/** BE có thể dùng type khác nhau cho rút / payout — lọc client tối đa 100 bản ghi gần nhất. */
+function isWithdrawLikeTx(item: UnifiedTransactionItem): boolean {
+  const t = String(item.type ?? "")
+    .toLowerCase()
+    .replace(/\s+/g, "_");
+  if (
+    t.includes("withdraw") ||
+    t.includes("payout") ||
+    t === "cashout" ||
+    t.includes("withdrawal")
+  )
+    return true;
+  const desc = String(item.description ?? "").toLowerCase();
+  return /rút tiền|withdraw|payout/.test(desc);
+}
+
+function assetPurchaseTitle(row: UnifiedTransactionItem): string {
+  const d = row.detail;
+  if (d && typeof d === "object") {
+    const name = (d as Record<string, unknown>).name;
+    if (typeof name === "string" && name.trim()) return name.trim();
+    const title = (d as Record<string, unknown>).title;
+    if (typeof title === "string" && title.trim()) return title.trim();
+  }
+  const ref = row.reference ?? row.referenceCode;
+  if (typeof ref === "string" && ref.trim()) return ref.trim();
+  if (typeof row.description === "string" && row.description.trim())
+    return row.description.trim();
+  return "Giao dịch";
+}
+
+function depositStatusBadgeClass(raw?: string) {
+  const s = String(raw ?? "").toLowerCase();
+  if (s === "completed" || s === "success" || s === "paid")
+    return "bg-primary/10 text-primary";
+  if (s === "pending" || s === "processing" || s === "accepted")
+    return "bg-yellow-500/10 text-yellow-500";
+  return "bg-destructive/10 text-destructive";
+}
+
+function depositStatusLabel(raw?: string) {
+  const s = String(raw ?? "").toLowerCase();
+  if (s === "completed" || s === "success" || s === "paid") return "THÀNH CÔNG";
+  if (s === "pending" || s === "processing" || s === "accepted")
+    return "ĐANG XỬ LÝ";
+  if (s === "failed" || s === "failure") return "THẤT BẠI";
+  if (s === "cancelled" || s === "canceled") return "ĐÃ HỦY";
+  return raw ? String(raw).toUpperCase() : "—";
+}
+
+function challengeStatusBadgeClass(
+  s: ReturnType<typeof normalizeChallengeStatus>,
+) {
+  if (s === "completed") return "bg-primary/10 text-primary";
+  if (s === "pending" || s === "accepted")
+    return "bg-yellow-500/10 text-yellow-500";
+  if (s === "rejected" || s === "failed")
+    return "bg-destructive/10 text-destructive";
+  return "bg-outline/10 text-outline";
+}
+
+function challengeStatusTableLabel(
+  s: ReturnType<typeof normalizeChallengeStatus>,
+) {
+  if (s === "completed") return "HOÀN THÀNH";
+  if (s === "pending") return "CHỜ DUYỆT";
+  if (s === "accepted") return "ĐANG LÀM";
+  if (s === "rejected") return "TỪ CHỐI";
+  if (s === "failed") return "THẤT BẠI";
+  return "KHÁC";
+}
+
+function donorNameFromChallenge(c: Challenge): string {
+  const donor = c.donor as
+    | { displayName?: string; username?: string }
+    | undefined;
+  return String(donor?.displayName || donor?.username || "—").toUpperCase();
+}
+
+function donorNameFromDonation(d: DonationRecord): string {
+  if (d.isAnonymous) return "ẨN DANH";
+  const donor = d.donor as
+    | { displayName?: string; username?: string }
+    | undefined;
+  return String(donor?.displayName || donor?.username || "—").toUpperCase();
+}
 
 function SocialIcon({ type }: { type: string }) {
   switch (type) {
-    case "facebook": return <Facebook className="w-3 h-3 md:w-4 md:h-4" />;
-    case "twitter": return <Twitter className="w-3 h-3 md:w-4 md:h-4" />;
-    case "instagram": return <Instagram className="w-3 h-3 md:w-4 md:h-4" />;
-    case "youtube": return <Youtube className="w-3 h-3 md:w-4 md:h-4" />;
-    default: return null;
+    case "facebook":
+      return <Facebook className="w-3 h-3 md:w-4 md:h-4" />;
+    case "twitter":
+      return <Twitter className="w-3 h-3 md:w-4 md:h-4" />;
+    case "instagram":
+      return <Instagram className="w-3 h-3 md:w-4 md:h-4" />;
+    case "youtube":
+      return <Youtube className="w-3 h-3 md:w-4 md:h-4" />;
+    default:
+      return null;
   }
 }
 
 export function StreamerDashboardView() {
+  const { data: profileRes, isLoading: profileLoading } = useGetProfileQuery();
+  const profile = profileRes?.success ? profileRes.data : undefined;
+
+  const { data: donationsRes, isLoading: donationsLoading } =
+    useGetStreamerDonationsQuery({
+      page: 1,
+      limit: SIDEBAR_FETCH_LIMIT,
+    });
+  const { data: challengesRes, isLoading: challengesLoading } =
+    useGetMyStreamerChallengesQuery({
+      page: 1,
+      limit: SIDEBAR_FETCH_LIMIT,
+    });
+
+  const donationRows = useMemo(
+    () => parseStreamerDonationsPayload(donationsRes),
+    [donationsRes],
+  );
+  const challengeRows = useMemo(
+    () => parseStreamerChallengesPayload(challengesRes),
+    [challengesRes],
+  );
+
+  const donateRevenueVnd = useMemo(
+    () =>
+      donationRows
+        .filter(donationCountsAsRevenue)
+        .reduce((sum, d) => sum + (Number(d.amount ?? d.netAmount) || 0), 0),
+    [donationRows],
+  );
+
+  const challengeEarnedVnd = useMemo(
+    () =>
+      challengeRows
+        .filter((c) => normalizeChallengeStatus(c.status) === "completed")
+        .reduce((sum, c) => sum + (Number(c.amount) || 0), 0),
+    [challengeRows],
+  );
+
+  /** Thử thách đang mở: chờ streamer hoặc đã accept, chưa complete / reject / fail. */
+  const openChallengesCount = useMemo(
+    () =>
+      challengeRows.filter((c) => {
+        const s = normalizeChallengeStatus(c.status);
+        return s === "pending" || s === "accepted";
+      }).length,
+    [challengeRows],
+  );
+
+  const totalRevenueVnd = useMemo(() => {
+    const t = profile?.totalAll;
+    if (typeof t === "number" && !Number.isNaN(t)) return t;
+    return donateRevenueVnd + challengeEarnedVnd;
+  }, [profile?.totalAll, donateRevenueVnd, challengeEarnedVnd]);
+
+  const totalRevenueDisplayReady = useMemo(() => {
+    if (
+      typeof profile?.totalAll === "number" &&
+      !Number.isNaN(profile.totalAll)
+    )
+      return !profileLoading;
+    return !profileLoading && !donationsLoading && !challengesLoading;
+  }, [profile?.totalAll, profileLoading, donationsLoading, challengesLoading]);
+
+  const hasStreamerSocial =
+    !!profile &&
+    !!(
+      profile.twitterHandle ||
+      profile.youtubeChannel ||
+      profile.facebookHandle ||
+      profile.instagramHandle
+    );
+
   const [currency, setCurrency] = useState<"VND" | "GEM">("VND");
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
   const [customAmount, setCustomAmount] = useState("");
@@ -86,6 +328,70 @@ export function StreamerDashboardView() {
   const [currentPage, setCurrentPage] = useState(1);
   const [isTopupOpen, setIsTopupOpen] = useState(false);
   const itemsPerPage = 5;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [historyTab]);
+
+  const { data: txDepositRes, isLoading: txDepositLoading } =
+    useGetTransactionHistoryQuery(
+      { type: "deposit", page: currentPage, limit: itemsPerPage },
+      { skip: historyTab !== "deposit" },
+    );
+
+  const { data: txAssetRes, isLoading: txAssetLoading } =
+    useGetTransactionHistoryQuery(
+      { type: "asset_purchase", page: currentPage, limit: itemsPerPage },
+      { skip: historyTab !== "battle" },
+    );
+
+  const { data: txWithdrawPoolRes, isLoading: txWithdrawLoading } =
+    useGetTransactionHistoryQuery(
+      { page: 1, limit: WITHDRAW_HISTORY_FETCH },
+      { skip: historyTab !== "withdraw" },
+    );
+
+  const depositHistory = useMemo(
+    () => unwrapTransactionHistory(txDepositRes),
+    [txDepositRes],
+  );
+
+  const assetPurchaseHistory = useMemo(
+    () => unwrapTransactionHistory(txAssetRes),
+    [txAssetRes],
+  );
+
+  const withdrawRows = useMemo(() => {
+    const { rows } = unwrapTransactionHistory(txWithdrawPoolRes);
+    return rows.filter(isWithdrawLikeTx);
+  }, [txWithdrawPoolRes]);
+
+  const withdrawPageRows = useMemo(
+    () =>
+      withdrawRows.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage,
+      ),
+    [withdrawRows, currentPage, itemsPerPage],
+  );
+
+  const challengeHistoryPageRows = useMemo(
+    () =>
+      challengeRows.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage,
+      ),
+    [challengeRows, currentPage, itemsPerPage],
+  );
+
+  const donationHistoryPageRows = useMemo(
+    () =>
+      donationRows.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage,
+      ),
+    [donationRows, currentPage, itemsPerPage],
+  );
 
   const quickAmounts = [50000, 100000, 200000, 500000];
 
@@ -101,9 +407,10 @@ export function StreamerDashboardView() {
   };
 
   const currentAmount = selectedAmount || Number(customAmount) || 0;
-  const conversionText = currency === "VND" 
-    ? `Nạp ${currentAmount.toLocaleString()} VND sẽ nhận được ${(currentAmount / 1000).toFixed(0)} GEM`
-    : `Nạp ${currentAmount.toLocaleString()} GEM sẽ cần thanh toán ${(currentAmount * 1000).toLocaleString()} VND`;
+  const conversionText =
+    currency === "VND"
+      ? `Nạp ${currentAmount.toLocaleString()} VND sẽ nhận được ${(currentAmount / 1000).toFixed(0)} GEM`
+      : `Nạp ${currentAmount.toLocaleString()} GEM sẽ cần thanh toán ${(currentAmount * 1000).toLocaleString()} VND`;
 
   const renderPagination = (totalItems: number) => {
     const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -114,26 +421,28 @@ export function StreamerDashboardView() {
         <Pagination>
           <PaginationContent>
             <PaginationItem>
-              <PaginationPrevious 
-                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                className={`cursor-pointer text-[10px] font-bold tracking-widest uppercase rounded-none border-outline-variant/20 hover:bg-primary hover:text-black ${currentPage === 1 ? 'opacity-50 pointer-events-none' : ''}`}
+              <PaginationPrevious
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                className={`cursor-pointer text-[10px] font-bold tracking-widest uppercase rounded-none border-outline-variant/20 hover:bg-primary hover:text-black ${currentPage === 1 ? "opacity-50 pointer-events-none" : ""}`}
               />
             </PaginationItem>
             {Array.from({ length: totalPages }).map((_, i) => (
               <PaginationItem key={i}>
-                <PaginationLink 
+                <PaginationLink
                   onClick={() => setCurrentPage(i + 1)}
                   isActive={currentPage === i + 1}
-                  className={`cursor-pointer text-[10px] font-bold rounded-none border-outline-variant/20 ${currentPage === i + 1 ? 'bg-primary text-black border-primary' : 'hover:bg-primary/10 text-outline'}`}
+                  className={`cursor-pointer text-[10px] font-bold rounded-none border-outline-variant/20 ${currentPage === i + 1 ? "bg-primary text-black border-primary" : "hover:bg-primary/10 text-outline"}`}
                 >
                   {i + 1}
                 </PaginationLink>
               </PaginationItem>
             ))}
             <PaginationItem>
-              <PaginationNext 
-                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                className={`cursor-pointer text-[10px] font-bold tracking-widest uppercase rounded-none border-outline-variant/20 hover:bg-primary hover:text-black ${currentPage === totalPages ? 'opacity-50 pointer-events-none' : ''}`}
+              <PaginationNext
+                onClick={() =>
+                  setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                }
+                className={`cursor-pointer text-[10px] font-bold tracking-widest uppercase rounded-none border-outline-variant/20 hover:bg-primary hover:text-black ${currentPage === totalPages ? "opacity-50 pointer-events-none" : ""}`}
               />
             </PaginationItem>
           </PaginationContent>
@@ -145,131 +454,129 @@ export function StreamerDashboardView() {
   return (
     <div className="flex-1 flex overflow-hidden bg-surface relative">
       <div className="scanline" />
-      
+
       <div className="flex-1 overflow-y-auto p-4 md:p-8">
         <div className="max-w-4xl mx-auto space-y-8 pb-20">
-          
-          {/* Profile Section (Top) */}
-          <section className="bg-surface-container-low border border-outline-variant/10 p-4 md:p-6 lg:p-8 rounded-[12px] relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-24 h-24 md:w-32 md:h-32 bg-primary/5 blur-3xl rounded-full -mr-12 -mt-12 md:-mr-16 md:-mt-16" />
-            
-            <div className="flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8 relative z-10">
-              <div className="relative">
-                <div className="w-20 h-20 md:w-24 md:h-24 lg:w-32 lg:h-32 rounded-full border-2 md:border-4 border-primary/20 p-1">
-                  <div className="w-full h-full rounded-full overflow-hidden border-2 border-primary">
-                    <img 
-                      src="https://picsum.photos/seed/adamhh/300/300" 
-                      alt="Adam HH" 
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  </div>
-                </div>
-                <div className="absolute -bottom-1 -right-1 md:-bottom-2 md:-right-2 bg-primary text-black p-1 md:p-1.5 rounded-full border-2 md:border-4 border-surface-container-low">
-                  <ShieldCheck className="w-4 h-4 md:w-5 md:h-5" />
-                </div>
+          <ProfileDashboardHeader />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+            <button
+              type="button"
+              className="flex items-center gap-3 bg-surface-container/50 p-2.5 md:p-3 rounded-[12px] border border-outline-variant/5 cursor-pointer hover:bg-surface-container-highest/20 transition-colors text-left w-full"
+              onClick={() =>
+                window.dispatchEvent(
+                  new CustomEvent("navigate", { detail: "OBS_SETTINGS" }),
+                )
+              }
+            >
+              <div className="w-6 h-6 md:w-8 md:h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                <Settings className="w-3 h-3 md:w-4 md:h-4" />
               </div>
-
-              <div className="flex-1 space-y-4 md:space-y-6 text-center md:text-left">
-                <div className="space-y-1">
-                  <h1 className="text-xl md:text-2xl lg:text-3xl font-bold tracking-tight text-foreground">Adam HH</h1>
-                  <p className="text-primary font-mono text-xs md:text-sm tracking-widest">@adamhh_tactical</p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-                  <div className="flex items-center gap-3 bg-surface-container/50 p-2.5 md:p-3 rounded-[12px] border border-outline-variant/5">
-                    <div className="w-6 h-6 md:w-8 md:h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                      <Mail className="w-3 h-3 md:w-4 md:h-4" />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-[9px] md:text-[10px] text-outline uppercase font-bold tracking-widest">Địa chỉ Email</p>
-                      <p className="text-xs md:text-sm font-medium">adam.hh@xscan.intel</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 bg-surface-container/50 p-2.5 md:p-3 rounded-[12px] border border-outline-variant/5">
-                    <div className="w-6 h-6 md:w-8 md:h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                      <Wallet className="w-3 h-3 md:w-4 md:h-4" />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-[9px] md:text-[10px] text-outline uppercase font-bold tracking-widest">Số dư ví</p>
-                      <p className="text-xs md:text-sm font-bold text-primary tracking-tight">2,450,000 VND</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 bg-surface-container/50 p-2.5 md:p-3 rounded-[12px] border border-outline-variant/5">
-                    <div className="w-6 h-6 md:w-8 md:h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                      <Zap className="w-3 h-3 md:w-4 md:h-4" />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-[9px] md:text-[10px] text-outline uppercase font-bold tracking-widest">Số dư GEM</p>
-                      <p className="text-xs md:text-sm font-bold text-primary tracking-tight">1,250 GEM</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 bg-surface-container/50 p-2.5 md:p-3 rounded-[12px] border border-outline-variant/5">
-                    <div className="w-6 h-6 md:w-8 md:h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                      <User className="w-3 h-3 md:w-4 md:h-4" />
-                    </div>
-                    <div className="text-left flex-1">
-                      <p className="text-[9px] md:text-[10px] text-outline uppercase font-bold tracking-widest">Vai trò tài khoản</p>
-                      <div className="flex items-center justify-between">
-                        <Badge className="bg-primary/20 text-primary border-none rounded-none px-1.5 py-0 md:px-2 text-[9px] md:text-[10px] font-bold tracking-widest">STREAMER</Badge>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 bg-surface-container/50 p-2.5 md:p-3 rounded-[12px] border border-outline-variant/5 cursor-pointer hover:bg-surface-container-highest/20 transition-colors" onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'OBS_SETTINGS' }))}>
-                    <div className="w-6 h-6 md:w-8 md:h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                      <Settings className="w-3 h-3 md:w-4 md:h-4" />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-[9px] md:text-[10px] text-outline uppercase font-bold tracking-widest">Cấu hình</p>
-                      <p className="text-xs md:text-sm font-medium">OBS Alert Settings</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-surface-container/30 p-3 md:p-4 rounded-[12px] border border-outline-variant/5">
-                  <p className="text-[9px] md:text-[10px] text-outline uppercase font-bold tracking-widest mb-1.5 md:mb-2">Tiểu sử chiến thuật</p>
-                  <p className="text-xs md:text-sm text-foreground/80 leading-relaxed italic mb-3">
-                    "Chuyên gia trinh sát tinh nhuệ và chiến lược gia đấu trường số. Triển khai nội dung kịch tính mỗi ngày. Gia nhập đội hình để thống trị chiến thuật."
-                  </p>
-                  <div className="flex gap-3">
-                    {["twitter", "youtube", "facebook"].map((s: string) => (
-                      <div key={s} className="text-outline hover:text-primary transition-colors cursor-pointer">
-                        <SocialIcon type={s} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
+              <div className="min-w-0">
+                <p className="text-[9px] md:text-[10px] text-outline uppercase font-bold tracking-widest">
+                  Cấu hình
+                </p>
+                <p className="text-xs md:text-sm font-medium">
+                  OBS Alert Settings
+                </p>
               </div>
-            </div>
-          </section>
+            </button>
+          </div>
+
+          {profile && (profile.bio || hasStreamerSocial) ? (
+            <section className="bg-surface-container/30 p-3 md:p-4 rounded-[12px] border border-outline-variant/5">
+              <p className="text-[9px] md:text-[10px] text-outline uppercase font-bold tracking-widest mb-1.5 md:mb-2">
+                Giới thiệu và mạng xã hội
+              </p>
+              {profile.bio ? (
+                <p className="text-xs md:text-sm text-foreground/80 leading-relaxed italic mb-3 whitespace-pre-wrap">
+                  {profile.bio}
+                </p>
+              ) : null}
+              <div className="flex flex-wrap gap-3">
+                {profile.twitterHandle ? (
+                  <a
+                    href={`https://twitter.com/${profile.twitterHandle.replace(/^@/, "")}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-outline hover:text-primary transition-colors"
+                  >
+                    <SocialIcon type="twitter" />
+                  </a>
+                ) : null}
+                {profile.youtubeChannel ? (
+                  <a
+                    href={
+                      profile.youtubeChannel.startsWith("http")
+                        ? profile.youtubeChannel
+                        : `https://youtube.com/${profile.youtubeChannel}`
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-outline hover:text-primary transition-colors"
+                  >
+                    <SocialIcon type="youtube" />
+                  </a>
+                ) : null}
+                {profile.facebookHandle ? (
+                  <a
+                    href={
+                      profile.facebookHandle.startsWith("http")
+                        ? profile.facebookHandle
+                        : `https://facebook.com/${profile.facebookHandle}`
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-outline hover:text-primary transition-colors"
+                  >
+                    <SocialIcon type="facebook" />
+                  </a>
+                ) : null}
+                {profile.instagramHandle ? (
+                  <a
+                    href={`https://instagram.com/${profile.instagramHandle.replace(/^@/, "")}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-outline hover:text-primary transition-colors"
+                  >
+                    <SocialIcon type="instagram" />
+                  </a>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
 
           {/* Collapsible Top-up Section */}
           <section className="space-y-3 md:space-y-4">
-            <button 
+            <button
               onClick={() => setIsTopupOpen(!isTopupOpen)}
               className="w-full flex items-center justify-between hover:opacity-80 transition-opacity"
             >
               <div className="flex items-center gap-2 md:gap-3 border-l-2 md:border-l-4 border-primary pl-3 md:pl-4">
-                <h2 className="text-lg md:text-xl font-bold tracking-tight uppercase">Nạp tiền</h2>
+                <h2 className="text-lg md:text-xl font-bold tracking-tight uppercase">
+                  Nạp tiền
+                </h2>
               </div>
-              {isTopupOpen ? <ChevronUp className="w-5 h-5 text-outline" /> : <ChevronDown className="w-5 h-5 text-outline" />}
+              {isTopupOpen ? (
+                <ChevronUp className="w-5 h-5 text-outline" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-outline" />
+              )}
             </button>
-            
+
             <AnimatePresence>
               {isTopupOpen && (
                 <motion.div
                   initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
+                  animate={{ height: "auto", opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
                   className="overflow-hidden bg-surface-container-low border border-outline-variant/10 rounded-[12px]"
                 >
                   <div className="p-4 md:p-6 space-y-4 md:space-y-6">
                     <div className="space-y-2 md:space-y-3">
-                      <label className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase">CHỌN LOẠI TIỀN</label>
+                      <label className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase">
+                        CHỌN LOẠI TIỀN
+                      </label>
                       <div className="grid grid-cols-2 gap-2 md:gap-3 max-w-md">
                         <Button
                           variant="outline"
@@ -291,13 +598,18 @@ export function StreamerDashboardView() {
                     </div>
 
                     <div className="space-y-2 md:space-y-3">
-                      <label className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase">MỆNH GIÁ NHANH</label>
+                      <label className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase">
+                        MỆNH GIÁ NHANH
+                      </label>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 max-w-2xl">
                         {quickAmounts.map((amount) => (
                           <Button
                             key={amount}
                             variant="outline"
-                            onClick={() => { setSelectedAmount(amount); setCustomAmount(""); }}
+                            onClick={() => {
+                              setSelectedAmount(amount);
+                              setCustomAmount("");
+                            }}
                             className={`h-10 md:h-12 rounded-[8px] border-outline-variant/20 text-[10px] md:text-xs font-bold font-mono ${selectedAmount === amount ? "bg-primary text-black border-primary" : "hover:bg-surface-container-high"}`}
                           >
                             {amount.toLocaleString()}
@@ -307,12 +619,17 @@ export function StreamerDashboardView() {
                     </div>
 
                     <div className="space-y-2 md:space-y-3">
-                      <label className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase">HOẶC NHẬP SỐ TIỀN</label>
+                      <label className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase">
+                        HOẶC NHẬP SỐ TIỀN
+                      </label>
                       <div className="relative max-w-md">
-                        <Input 
+                        <Input
                           type="number"
                           value={customAmount}
-                          onChange={(e) => { setCustomAmount(e.target.value); setSelectedAmount(null); }}
+                          onChange={(e) => {
+                            setCustomAmount(e.target.value);
+                            setSelectedAmount(null);
+                          }}
                           placeholder="0"
                           className="h-10 md:h-12 pl-3 md:pl-4 pr-12 md:pr-16 bg-surface-container-low border-outline-variant/20 font-mono text-xs md:text-sm rounded-[8px]"
                         />
@@ -332,7 +649,7 @@ export function StreamerDashboardView() {
                     )}
 
                     <div className="pt-2">
-                      <Button 
+                      <Button
                         className="w-full md:w-auto px-8 text-[10px] md:text-xs font-bold tracking-[0.2em] uppercase h-10 md:h-12 rounded-[8px] bg-primary text-black hover:bg-primary/90 transition-all shadow-[0_0_15px_rgba(255,184,0,0.1)]"
                         onClick={handleCreateQR}
                         disabled={!selectedAmount && !customAmount}
@@ -344,27 +661,36 @@ export function StreamerDashboardView() {
                     {/* Inline QR Code */}
                     <AnimatePresence>
                       {showQR && (
-                        <motion.div 
+                        <motion.div
                           initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
+                          animate={{ opacity: 1, height: "auto" }}
                           exit={{ opacity: 0, height: 0 }}
                           className="mt-6 border border-outline-variant/20 rounded-[12px] overflow-hidden"
                         >
                           <div className="p-4 md:p-6 border-b border-outline-variant/10 flex items-center justify-between bg-surface-container-low/30">
-                            <h3 className="text-[9px] md:text-[10px] font-bold text-outline tracking-[0.2em] uppercase">QUÉT MÃ QR</h3>
-                            <Button variant="ghost" size="icon" onClick={() => setShowQR(false)} className="h-6 w-6 md:h-8 md:w-8 hover:bg-surface-container-high rounded-[8px]">
+                            <h3 className="text-[9px] md:text-[10px] font-bold text-outline tracking-[0.2em] uppercase">
+                              QUÉT MÃ QR
+                            </h3>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setShowQR(false)}
+                              className="h-6 w-6 md:h-8 md:w-8 hover:bg-surface-container-high rounded-[8px]"
+                            >
                               <X className="w-3 h-3 md:w-4 md:h-4" />
                             </Button>
                           </div>
-                          
+
                           <div className="p-4 md:p-6 flex flex-col items-center justify-center space-y-6 md:space-y-8 bg-surface-container-lowest/50">
                             <div className="bg-white p-3 md:p-4 rounded-[12px] md:rounded-[16px] shadow-[0_0_30px_rgba(255,184,0,0.15)] relative group">
                               <div className="absolute inset-0 border-2 border-primary/50 rounded-[12px] md:rounded-[16px] scale-105 opacity-0 group-hover:opacity-100 group-hover:scale-100 transition-all duration-500" />
                               <QrCode className="w-40 h-40 md:w-48 md:h-48 text-black" />
                             </div>
-                            
+
                             <div className="text-center space-y-1 md:space-y-2">
-                              <p className="text-[9px] md:text-[10px] text-outline uppercase font-bold tracking-widest">SỐ TIỀN THANH TOÁN</p>
+                              <p className="text-[9px] md:text-[10px] text-outline uppercase font-bold tracking-widest">
+                                SỐ TIỀN THANH TOÁN
+                              </p>
                               <p className="text-xl md:text-2xl font-display font-bold text-primary tracking-tight">
                                 {currentAmount.toLocaleString()} {currency}
                               </p>
@@ -372,16 +698,26 @@ export function StreamerDashboardView() {
 
                             <div className="w-full max-w-md space-y-3 md:space-y-4 bg-surface-container-low p-3 md:p-4 rounded-[12px] border border-outline-variant/10">
                               <div className="flex items-center justify-between">
-                                <span className="text-[8px] md:text-[9px] text-outline uppercase font-bold tracking-widest">NỘI DUNG CK</span>
+                                <span className="text-[8px] md:text-[9px] text-outline uppercase font-bold tracking-widest">
+                                  NỘI DUNG CK
+                                </span>
                                 <div className="flex items-center gap-2">
-                                  <span className="text-[9px] md:text-[10px] font-mono font-bold text-foreground">NAP {currentAmount} ADAMHH</span>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
+                                  <span className="text-[9px] md:text-[10px] font-mono font-bold text-foreground">
+                                    NAP {currentAmount} ADAMHH
+                                  </span>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
                                     className="h-5 w-5 md:h-6 md:w-6 hover:bg-surface-container-high rounded-[6px]"
-                                    onClick={() => handleCopy(`NAP ${currentAmount} ADAMHH`)}
+                                    onClick={() =>
+                                      handleCopy(`NAP ${currentAmount} ADAMHH`)
+                                    }
                                   >
-                                    {copied ? <Check className="w-2.5 h-2.5 md:w-3 md:h-3 text-primary" /> : <Copy className="w-2.5 h-2.5 md:w-3 md:h-3" />}
+                                    {copied ? (
+                                      <Check className="w-2.5 h-2.5 md:w-3 md:h-3 text-primary" />
+                                    ) : (
+                                      <Copy className="w-2.5 h-2.5 md:w-3 md:h-3" />
+                                    )}
                                   </Button>
                                 </div>
                               </div>
@@ -389,7 +725,9 @@ export function StreamerDashboardView() {
 
                             <div className="flex items-center gap-2 text-outline">
                               <CreditCard className="w-3 h-3 md:w-4 md:h-4" />
-                              <span className="text-[8px] md:text-[9px] uppercase font-bold tracking-widest">Hỗ trợ mọi ngân hàng & ví điện tử</span>
+                              <span className="text-[8px] md:text-[9px] uppercase font-bold tracking-widest">
+                                Hỗ trợ mọi ngân hàng & ví điện tử
+                              </span>
                             </div>
                           </div>
                         </motion.div>
@@ -404,39 +742,45 @@ export function StreamerDashboardView() {
           {/* History Section */}
           <section className="space-y-3 md:space-y-4">
             <div className="flex items-center gap-2 md:gap-3 border-l-2 md:border-l-4 border-primary pl-3 md:pl-4">
-              <h2 className="text-lg md:text-xl font-bold tracking-tight uppercase">Lịch sử hoạt động</h2>
+              <h2 className="text-lg md:text-xl font-bold tracking-tight uppercase">
+                Lịch sử hoạt động
+              </h2>
             </div>
-            
+
             <div className="bg-surface-container-low border border-outline-variant/10 rounded-[12px] overflow-hidden">
-              <Tabs value={historyTab} onValueChange={setHistoryTab} className="w-full flex flex-col">
+              <Tabs
+                value={historyTab}
+                onValueChange={setHistoryTab}
+                className="w-full flex flex-col"
+              >
                 <div className="border-b border-outline-variant/10 p-1.5 md:p-2 bg-surface-container-lowest/50">
                   <TabsList className="bg-transparent h-auto p-0 flex gap-1 md:gap-2">
-                    <TabsTrigger 
-                      value="withdraw" 
+                    <TabsTrigger
+                      value="withdraw"
                       className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:border-primary border border-transparent rounded-[8px] text-[9px] md:text-[10px] font-bold tracking-widest uppercase px-3 md:px-4 py-1.5 md:py-2"
                     >
                       Rút tiền
                     </TabsTrigger>
-                    <TabsTrigger 
-                      value="battle" 
+                    <TabsTrigger
+                      value="battle"
                       className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:border-primary border border-transparent rounded-[8px] text-[9px] md:text-[10px] font-bold tracking-widest uppercase px-3 md:px-4 py-1.5 md:py-2"
                     >
                       Giao dịch Battle
                     </TabsTrigger>
-                    <TabsTrigger 
-                      value="deposit" 
+                    <TabsTrigger
+                      value="deposit"
                       className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:border-primary border border-transparent rounded-[8px] text-[9px] md:text-[10px] font-bold tracking-widest uppercase px-3 md:px-4 py-1.5 md:py-2"
                     >
                       Nạp tiền
                     </TabsTrigger>
-                    <TabsTrigger 
-                      value="challenge" 
+                    <TabsTrigger
+                      value="challenge"
                       className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:border-primary border border-transparent rounded-[8px] text-[9px] md:text-[10px] font-bold tracking-widest uppercase px-3 md:px-4 py-1.5 md:py-2"
                     >
                       Thử thách
                     </TabsTrigger>
-                    <TabsTrigger 
-                      value="donate" 
+                    <TabsTrigger
+                      value="donate"
                       className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:border-primary border border-transparent rounded-[8px] text-[9px] md:text-[10px] font-bold tracking-widest uppercase px-3 md:px-4 py-1.5 md:py-2"
                     >
                       Donate
@@ -444,192 +788,403 @@ export function StreamerDashboardView() {
                   </TabsList>
                 </div>
 
-                <TabsContent value="withdraw" className="m-0 border-none outline-none">
+                <TabsContent
+                  value="withdraw"
+                  className="m-0 border-none outline-none"
+                >
                   <ScrollArea className="w-full">
                     <Table>
                       <TableHeader>
                         <TableRow className="border-outline-variant/10 hover:bg-transparent">
-                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">Mã GD</TableHead>
-                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">Số tiền</TableHead>
-                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10 text-right">Thời gian</TableHead>
+                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">
+                            Mã GD
+                          </TableHead>
+                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">
+                            Số tiền
+                          </TableHead>
+                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10 text-right">
+                            Thời gian
+                          </TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {[
-                          { id: "WD-001", amount: 2000000, time: "2 NGÀY TRƯỚC" },
-                          { id: "WD-002", amount: 5000000, time: "1 TUẦN TRƯỚC" },
-                        ].slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((wd) => (
-                          <TableRow key={wd.id} className="border-outline-variant/5 hover:bg-surface-container/50 transition-colors">
-                            <TableCell className="font-mono text-[9px] md:text-[10px] text-foreground py-2 md:py-3">{wd.id}</TableCell>
-                            <TableCell className="py-2 md:py-3">
-                              <span className="text-[10px] md:text-xs font-bold text-primary">
-                                {wd.amount.toLocaleString()} VND
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-right text-[8px] md:text-[9px] font-mono text-outline py-2 md:py-3">
-                              {wd.time}
+                        {txWithdrawLoading ? (
+                          <TableRow>
+                            <TableCell
+                              colSpan={3}
+                              className="py-8 text-center text-outline"
+                            >
+                              <Loader2 className="w-5 h-5 animate-spin inline mr-2 align-middle" />
+                              <span className="text-xs">Đang tải…</span>
                             </TableCell>
                           </TableRow>
-                        ))}
+                        ) : withdrawPageRows.length === 0 ? (
+                          <TableRow>
+                            <TableCell
+                              colSpan={3}
+                              className="py-8 text-center text-xs text-outline"
+                            >
+                              Không có giao dịch rút
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          withdrawPageRows.map((wd) => (
+                            <TableRow
+                              key={txRowId(wd)}
+                              className="border-outline-variant/5 hover:bg-surface-container/50 transition-colors"
+                            >
+                              <TableCell className="font-mono text-[9px] md:text-[10px] text-foreground py-2 md:py-3">
+                                {txRowId(wd)}
+                              </TableCell>
+                              <TableCell className="py-2 md:py-3">
+                                <span className="text-[10px] md:text-xs font-bold text-primary">
+                                  {(Number(wd.amount) || 0).toLocaleString(
+                                    "vi-VN",
+                                  )}{" "}
+                                  {String(wd.currency || "VND").toUpperCase()}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right text-[8px] md:text-[9px] font-mono text-outline py-2 md:py-3">
+                                {formatActivityTime(wd.createdAt)}
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
                       </TableBody>
                     </Table>
                   </ScrollArea>
-                  {renderPagination(2)}
+                  {renderPagination(withdrawRows.length)}
                 </TabsContent>
 
-                <TabsContent value="deposit" className="m-0 border-none outline-none">
+                <TabsContent
+                  value="deposit"
+                  className="m-0 border-none outline-none"
+                >
                   <ScrollArea className="w-full">
                     <Table>
                       <TableHeader>
                         <TableRow className="border-outline-variant/10 hover:bg-transparent">
-                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">Mã GD</TableHead>
-                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">Số lượng</TableHead>
-                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">Thời gian</TableHead>
-                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10 text-right">Trạng thái</TableHead>
+                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">
+                            Mã GD
+                          </TableHead>
+                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">
+                            Số lượng
+                          </TableHead>
+                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">
+                            Thời gian
+                          </TableHead>
+                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10 text-right">
+                            Trạng thái
+                          </TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {DEPOSIT_HISTORY.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((tx) => (
-                          <TableRow key={tx.id} className="border-outline-variant/5 hover:bg-surface-container/50 transition-colors">
-                            <TableCell className="font-mono text-[9px] md:text-[10px] text-foreground py-2 md:py-3">{tx.id}</TableCell>
-                            <TableCell className="py-2 md:py-3">
-                              <span className="text-[10px] md:text-xs font-bold text-primary">
-                                {tx.amount.toLocaleString()} {tx.currency}
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-[8px] md:text-[9px] font-mono text-outline py-2 md:py-3">{tx.time}</TableCell>
-                            <TableCell className="text-right py-2 md:py-3">
-                              <Badge variant="outline" className={`
-                                text-[7px] md:text-[8px] font-bold tracking-widest uppercase rounded-none border-none px-1.5 md:px-2 py-0.5 md:py-1
-                                ${tx.status === 'completed' ? 'bg-primary/10 text-primary' : 
-                                  tx.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500' : 
-                                  'bg-destructive/10 text-destructive'}
-                              `}>
-                                {tx.status === 'completed' ? 'THÀNH CÔNG' : tx.status === 'pending' ? 'ĐANG XỬ LÝ' : 'THẤT BẠI'}
-                              </Badge>
+                        {txDepositLoading ? (
+                          <TableRow>
+                            <TableCell
+                              colSpan={4}
+                              className="py-8 text-center text-outline"
+                            >
+                              <Loader2 className="w-5 h-5 animate-spin inline mr-2 align-middle" />
+                              <span className="text-xs">Đang tải…</span>
                             </TableCell>
                           </TableRow>
-                        ))}
+                        ) : depositHistory.rows.length === 0 ? (
+                          <TableRow>
+                            <TableCell
+                              colSpan={4}
+                              className="py-8 text-center text-xs text-outline"
+                            >
+                              Chưa có giao dịch nạp
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          depositHistory.rows.map((tx) => (
+                            <TableRow
+                              key={txRowId(tx)}
+                              className="border-outline-variant/5 hover:bg-surface-container/50 transition-colors"
+                            >
+                              <TableCell className="font-mono text-[9px] md:text-[10px] text-foreground py-2 md:py-3">
+                                {txRowId(tx)}
+                              </TableCell>
+                              <TableCell className="py-2 md:py-3">
+                                <span className="text-[10px] md:text-xs font-bold text-primary">
+                                  {(Number(tx.amount) || 0).toLocaleString(
+                                    "vi-VN",
+                                  )}{" "}
+                                  {String(tx.currency || "VND").toUpperCase()}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-[8px] md:text-[9px] font-mono text-outline py-2 md:py-3">
+                                {formatActivityTime(tx.createdAt)}
+                              </TableCell>
+                              <TableCell className="text-right py-2 md:py-3">
+                                <Badge
+                                  variant="outline"
+                                  className={`text-[7px] md:text-[8px] font-bold tracking-widest uppercase rounded-none border-none px-1.5 md:px-2 py-0.5 md:py-1 ${depositStatusBadgeClass(tx.status)}`}
+                                >
+                                  {depositStatusLabel(tx.status)}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
                       </TableBody>
                     </Table>
                   </ScrollArea>
-                  {renderPagination(DEPOSIT_HISTORY.length)}
+                  {renderPagination(depositHistory.total)}
                 </TabsContent>
 
-                <TabsContent value="challenge" className="m-0 border-none outline-none">
+                <TabsContent
+                  value="challenge"
+                  className="m-0 border-none outline-none"
+                >
                   <ScrollArea className="w-full">
                     <Table>
                       <TableHeader>
                         <TableRow className="border-outline-variant/10 hover:bg-transparent">
-                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">Mã TT</TableHead>
-                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">Streamer</TableHead>
-                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">Nội dung</TableHead>
-                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">Số lượng</TableHead>
-                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10 text-right">Trạng thái</TableHead>
+                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">
+                            Mã TT
+                          </TableHead>
+                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">
+                            Donor
+                          </TableHead>
+                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">
+                            Nội dung
+                          </TableHead>
+                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">
+                            Số lượng
+                          </TableHead>
+                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10 text-right">
+                            Trạng thái
+                          </TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {CREATED_CHALLENGES.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((ch) => (
-                          <TableRow key={ch.id} className="border-outline-variant/5 hover:bg-surface-container/50 transition-colors">
-                            <TableCell className="font-mono text-[9px] md:text-[10px] text-foreground py-2 md:py-3">{ch.id}</TableCell>
-                            <TableCell className="text-[9px] md:text-[10px] font-bold uppercase py-2 md:py-3">{ch.streamer}</TableCell>
-                            <TableCell className="text-[9px] md:text-[10px] text-outline max-w-[150px] md:max-w-[200px] truncate py-2 md:py-3">{ch.content}</TableCell>
-                            <TableCell className="py-2 md:py-3">
-                              <span className="text-[10px] md:text-xs font-bold text-primary">
-                                {ch.amount.toLocaleString()} VND
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-right py-2 md:py-3">
-                              <Badge variant="outline" className={`
-                                text-[7px] md:text-[8px] font-bold tracking-widest uppercase rounded-none border-none px-1.5 md:px-2 py-0.5 md:py-1
-                                ${ch.status === 'completed' ? 'bg-primary/10 text-primary' : 
-                                  ch.status === 'pending' ? 'bg-yellow-500/10 text-yellow-500' : 
-                                  'bg-destructive/10 text-destructive'}
-                              `}>
-                                {ch.status === 'completed' ? 'HOÀN THÀNH' : ch.status === 'pending' ? 'CHỜ DUYỆT' : 'THẤT BẠI'}
-                              </Badge>
+                        {challengesLoading ? (
+                          <TableRow>
+                            <TableCell
+                              colSpan={5}
+                              className="py-8 text-center text-outline"
+                            >
+                              <Loader2 className="w-5 h-5 animate-spin inline mr-2 align-middle" />
+                              <span className="text-xs">Đang tải…</span>
                             </TableCell>
                           </TableRow>
-                        ))}
+                        ) : challengeRows.length === 0 ? (
+                          <TableRow>
+                            <TableCell
+                              colSpan={5}
+                              className="py-8 text-center text-xs text-outline"
+                            >
+                              Chưa có thử thách.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          challengeHistoryPageRows.map((ch) => {
+                            const cid = String(ch._id ?? ch.id ?? "");
+                            const ui = normalizeChallengeStatus(ch.status);
+                            return (
+                              <TableRow
+                                key={cid}
+                                className="border-outline-variant/5 hover:bg-surface-container/50 transition-colors"
+                              >
+                                <TableCell className="font-mono text-[9px] md:text-[10px] text-foreground py-2 md:py-3">
+                                  {cid || "—"}
+                                </TableCell>
+                                <TableCell className="text-[9px] md:text-[10px] font-bold uppercase py-2 md:py-3">
+                                  {donorNameFromChallenge(ch)}
+                                </TableCell>
+                                <TableCell className="text-[9px] md:text-[10px] text-outline max-w-[150px] md:max-w-[200px] truncate py-2 md:py-3">
+                                  {String(ch.content ?? "—")}
+                                </TableCell>
+                                <TableCell className="py-2 md:py-3">
+                                  <span className="text-[10px] md:text-xs font-bold text-primary">
+                                    {(Number(ch.amount) || 0).toLocaleString(
+                                      "vi-VN",
+                                    )}{" "}
+                                    VND
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-right py-2 md:py-3">
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-[7px] md:text-[8px] font-bold tracking-widest uppercase rounded-none border-none px-1.5 md:px-2 py-0.5 md:py-1 ${challengeStatusBadgeClass(ui)}`}
+                                  >
+                                    {challengeStatusTableLabel(ui)}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
+                        )}
                       </TableBody>
                     </Table>
                   </ScrollArea>
-                  {renderPagination(CREATED_CHALLENGES.length)}
+                  {renderPagination(challengeRows.length)}
                 </TabsContent>
 
-                <TabsContent value="donate" className="m-0 border-none outline-none">
+                <TabsContent
+                  value="donate"
+                  className="m-0 border-none outline-none"
+                >
                   <ScrollArea className="w-full">
                     <Table>
                       <TableHeader>
                         <TableRow className="border-outline-variant/10 hover:bg-transparent">
-                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">Mã Donate</TableHead>
-                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">Streamer</TableHead>
-                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">Lời nhắn</TableHead>
-                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">Số lượng</TableHead>
-                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10 text-right">Thời gian</TableHead>
+                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">
+                            Mã Donate
+                          </TableHead>
+                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">
+                            Donor
+                          </TableHead>
+                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">
+                            Lời nhắn
+                          </TableHead>
+                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">
+                            Số lượng
+                          </TableHead>
+                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10 text-right">
+                            Thời gian
+                          </TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {DONATION_HISTORY.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((don) => (
-                          <TableRow key={don.id} className="border-outline-variant/5 hover:bg-surface-container/50 transition-colors">
-                            <TableCell className="font-mono text-[9px] md:text-[10px] text-foreground py-2 md:py-3">{don.id}</TableCell>
-                            <TableCell className="text-[9px] md:text-[10px] font-bold uppercase py-2 md:py-3">{don.streamer}</TableCell>
-                            <TableCell className="text-[9px] md:text-[10px] text-outline max-w-[150px] md:max-w-[200px] truncate py-2 md:py-3">{don.message}</TableCell>
-                            <TableCell className="py-2 md:py-3">
-                              <span className="text-[10px] md:text-xs font-bold text-primary">
-                                {don.amount.toLocaleString()} VND
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-right text-[8px] md:text-[9px] font-mono text-outline py-2 md:py-3">
-                              {don.time}
+                        {donationsLoading ? (
+                          <TableRow>
+                            <TableCell
+                              colSpan={5}
+                              className="py-8 text-center text-outline"
+                            >
+                              <Loader2 className="w-5 h-5 animate-spin inline mr-2 align-middle" />
+                              <span className="text-xs">Đang tải…</span>
                             </TableCell>
                           </TableRow>
-                        ))}
+                        ) : donationRows.length === 0 ? (
+                          <TableRow>
+                            <TableCell
+                              colSpan={5}
+                              className="py-8 text-center text-xs text-outline"
+                            >
+                              Chưa có donate.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          donationHistoryPageRows.map((don) => {
+                            const did = String(don._id ?? don.id ?? "");
+                            return (
+                              <TableRow
+                                key={did}
+                                className="border-outline-variant/5 hover:bg-surface-container/50 transition-colors"
+                              >
+                                <TableCell className="font-mono text-[9px] md:text-[10px] text-foreground py-2 md:py-3">
+                                  {did || "—"}
+                                </TableCell>
+                                <TableCell className="text-[9px] md:text-[10px] font-bold uppercase py-2 md:py-3">
+                                  {donorNameFromDonation(don)}
+                                </TableCell>
+                                <TableCell className="text-[9px] md:text-[10px] text-outline max-w-[150px] md:max-w-[200px] truncate py-2 md:py-3">
+                                  {String(don.message ?? "—")}
+                                </TableCell>
+                                <TableCell className="py-2 md:py-3">
+                                  <span className="text-[10px] md:text-xs font-bold text-primary">
+                                    {(
+                                      Number(don.amount ?? don.netAmount) || 0
+                                    ).toLocaleString("vi-VN")}{" "}
+                                    {String(
+                                      don.currency || "VND",
+                                    ).toUpperCase()}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-right text-[8px] md:text-[9px] font-mono text-outline py-2 md:py-3">
+                                  {formatActivityTime(don.createdAt)}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
+                        )}
                       </TableBody>
                     </Table>
                   </ScrollArea>
-                  {renderPagination(DONATION_HISTORY.length)}
+                  {renderPagination(donationRows.length)}
                 </TabsContent>
 
-                <TabsContent value="battle" className="m-0 border-none outline-none">
+                <TabsContent
+                  value="battle"
+                  className="m-0 border-none outline-none"
+                >
                   <ScrollArea className="w-full">
                     <Table>
                       <TableHeader>
                         <TableRow className="border-outline-variant/10 hover:bg-transparent">
-                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">Mã GD</TableHead>
-                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">Tên trận</TableHead>
-                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">Số tiền</TableHead>
-                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10 text-right">Thời gian</TableHead>
+                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">
+                            Mã GD
+                          </TableHead>
+                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">
+                            Mô tả
+                          </TableHead>
+                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10">
+                            Số tiền
+                          </TableHead>
+                          <TableHead className="text-[8px] md:text-[9px] font-bold text-outline tracking-widest uppercase h-8 md:h-10 text-right">
+                            Thời gian
+                          </TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {[
-                          { id: "BAT-001", name: "Battle #99482", amount: 5000000, time: "1 NGÀY TRƯỚC" },
-                          { id: "BAT-002", name: "Battle #99485", amount: 2500000, time: "3 NGÀY TRƯỚC" },
-                        ].slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((bt) => (
-                          <TableRow key={bt.id} className="border-outline-variant/5 hover:bg-surface-container/50 transition-colors">
-                            <TableCell className="font-mono text-[9px] md:text-[10px] text-foreground py-2 md:py-3">{bt.id}</TableCell>
-                            <TableCell className="text-[9px] md:text-[10px] font-bold uppercase py-2 md:py-3">{bt.name}</TableCell>
-                            <TableCell className="py-2 md:py-3">
-                              <span className="text-[10px] md:text-xs font-bold text-primary">
-                                {bt.amount.toLocaleString()} VND
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-right text-[8px] md:text-[9px] font-mono text-outline py-2 md:py-3">
-                              {bt.time}
+                        {txAssetLoading ? (
+                          <TableRow>
+                            <TableCell
+                              colSpan={4}
+                              className="py-8 text-center text-outline"
+                            >
+                              <Loader2 className="w-5 h-5 animate-spin inline mr-2 align-middle" />
+                              <span className="text-xs">Đang tải…</span>
                             </TableCell>
                           </TableRow>
-                        ))}
+                        ) : assetPurchaseHistory.rows.length === 0 ? (
+                          <TableRow>
+                            <TableCell
+                              colSpan={4}
+                              className="py-8 text-center text-xs text-outline"
+                            >
+                              Chưa có giao dịch mua.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          assetPurchaseHistory.rows.map((bt) => (
+                            <TableRow
+                              key={txRowId(bt)}
+                              className="border-outline-variant/5 hover:bg-surface-container/50 transition-colors"
+                            >
+                              <TableCell className="font-mono text-[9px] md:text-[10px] text-foreground py-2 md:py-3">
+                                {txRowId(bt)}
+                              </TableCell>
+                              <TableCell className="text-[9px] md:text-[10px] font-bold uppercase py-2 md:py-3 max-w-[200px] truncate">
+                                {assetPurchaseTitle(bt)}
+                              </TableCell>
+                              <TableCell className="py-2 md:py-3">
+                                <span className="text-[10px] md:text-xs font-bold text-primary">
+                                  {(Number(bt.amount) || 0).toLocaleString(
+                                    "vi-VN",
+                                  )}{" "}
+                                  {String(bt.currency || "VND").toUpperCase()}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right text-[8px] md:text-[9px] font-mono text-outline py-2 md:py-3">
+                                {formatActivityTime(bt.createdAt)}
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
                       </TableBody>
                     </Table>
                   </ScrollArea>
-                  {renderPagination(2)}
+                  {renderPagination(assetPurchaseHistory.total)}
                 </TabsContent>
-
               </Tabs>
             </div>
           </section>
-
         </div>
       </div>
 
@@ -637,12 +1192,17 @@ export function StreamerDashboardView() {
       <aside className="w-full md:w-80 shrink-0 border-l border-outline-variant/10 bg-surface-container-lowest/50 flex flex-col overflow-hidden relative z-10">
         <ScrollArea className="flex-1">
           <div className="p-4 md:p-6 space-y-4 md:space-y-6">
-            
-            {/* Total Revenue */}
+            {/* Total Revenue — GET /users/profile (totalAll) hoặc tổng tạm từ donate + challenge đã hoàn thành */}
             <div className="space-y-0.5">
-              <p className="text-[9px] text-outline font-bold tracking-widest uppercase">Tổng doanh thu</p>
+              <p className="text-[9px] text-outline font-bold tracking-widest uppercase">
+                Tổng doanh thu
+              </p>
               <div className="flex items-baseline gap-1">
-                <span className="text-xl font-bold text-primary tracking-tighter">45,850,000</span>
+                <span className="text-xl font-bold text-primary tracking-tighter">
+                  {!totalRevenueDisplayReady
+                    ? "…"
+                    : totalRevenueVnd.toLocaleString("vi-VN")}
+                </span>
                 <span className="text-[10px] font-bold text-primary">VND</span>
               </div>
             </div>
@@ -650,68 +1210,106 @@ export function StreamerDashboardView() {
             <div className="h-px bg-outline-variant/10 w-full" />
 
             {/* Revenue from Donation */}
-            <div 
+            <div
               className="bg-surface-container-low border border-outline-variant/10 p-3 rounded-[12px] cursor-pointer hover:border-primary/30 transition-all flex items-center justify-between group"
-              onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'STREAMER_DONATIONS' }))}
+              onClick={() =>
+                window.dispatchEvent(
+                  new CustomEvent("navigate", { detail: "STREAMER_DONATIONS" }),
+                )
+              }
             >
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-[10px] bg-primary/10 flex items-center justify-center text-primary">
                   <DollarSign className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="text-[9px] text-outline font-bold tracking-widest uppercase">Donate</p>
-                  <p className="text-xs font-bold text-foreground">12,850,000 VND</p>
+                  <p className="text-[9px] text-outline font-bold tracking-widest uppercase">
+                    Donate
+                  </p>
+                  <p className="text-xs font-bold text-foreground">
+                    {donationsLoading
+                      ? "…"
+                      : `${donateRevenueVnd.toLocaleString("vi-VN")} VND`}
+                  </p>
                 </div>
               </div>
               <ArrowRight className="w-4 h-4 text-outline group-hover:text-primary" />
             </div>
 
             {/* Revenue from Challenge */}
-            <div 
+            <div
               className="bg-surface-container-low border border-outline-variant/10 p-3 rounded-[12px] cursor-pointer hover:border-primary/30 transition-all flex items-center justify-between group"
-              onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'STREAMER_CHALLENGES' }))}
+              onClick={() =>
+                window.dispatchEvent(
+                  new CustomEvent("navigate", {
+                    detail: "STREAMER_CHALLENGES",
+                  }),
+                )
+              }
             >
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-[10px] bg-primary/10 flex items-center justify-center text-primary relative">
                   <Zap className="w-4 h-4" />
-                  <span className="absolute -top-1 -right-1 bg-yellow-500 text-[8px] font-bold text-black w-4 h-4 rounded-full flex items-center justify-center">3</span>
+                  {openChallengesCount > 0 ? (
+                    <span className="absolute -top-1 -right-1 min-w-4 h-4 px-0.5 bg-yellow-500 text-[8px] font-bold text-black rounded-full flex items-center justify-center tabular-nums">
+                      {openChallengesCount > 99 ? "99+" : openChallengesCount}
+                    </span>
+                  ) : null}
                 </div>
                 <div>
-                  <p className="text-[9px] text-outline font-bold tracking-widest uppercase">Challenge</p>
-                  <p className="text-sm font-bold text-foreground">33,000,000 VND</p>
+                  <p className="text-[9px] text-outline font-bold tracking-widest uppercase">
+                    Challenge
+                  </p>
+                  <p className="text-sm font-bold text-foreground">
+                    {challengesLoading
+                      ? "…"
+                      : `${challengeEarnedVnd.toLocaleString("vi-VN")} VND`}
+                  </p>
+                  <p className="text-[8px] text-outline mt-0.5">
+                    Doanh thu thử thách đã hoàn thành
+                  </p>
                 </div>
               </div>
               <ArrowRight className="w-4 h-4 text-outline group-hover:text-primary" />
             </div>
 
             {/* Donation Link Management */}
-            <div 
+            <div
               className="bg-surface-container-low border border-outline-variant/10 p-4 rounded-[12px] cursor-pointer hover:border-primary/30 transition-all flex items-center justify-between group"
-              onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'DONATION_LINKS' }))}
+              onClick={() =>
+                window.dispatchEvent(
+                  new CustomEvent("navigate", { detail: "DONATION_LINKS" }),
+                )
+              }
             >
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-[10px] bg-primary/10 flex items-center justify-center text-primary">
                   <LinkIcon className="w-4 h-4" />
                 </div>
-                <p className="text-[10px] font-bold tracking-widest uppercase text-foreground group-hover:text-primary">Quản lý Donation Link</p>
+                <p className="text-[10px] font-bold tracking-widest uppercase text-foreground group-hover:text-primary">
+                  Quản lý Donation Link
+                </p>
               </div>
               <ArrowRight className="w-4 h-4 text-outline group-hover:text-primary" />
             </div>
 
             {/* OBS Settings */}
-            <div 
+            <div
               className="bg-surface-container-low border border-outline-variant/10 p-4 rounded-[12px] cursor-pointer hover:border-primary/30 transition-all flex items-center justify-between group"
-              onClick={() => {/* Handle OBS Settings */}}
+              onClick={() => {
+                /* Handle OBS Settings */
+              }}
             >
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-[10px] bg-primary/10 flex items-center justify-center text-primary">
                   <Settings className="w-4 h-4" />
                 </div>
-                <p className="text-[10px] font-bold tracking-widest uppercase text-foreground group-hover:text-primary">OBS Setting</p>
+                <p className="text-[10px] font-bold tracking-widest uppercase text-foreground group-hover:text-primary">
+                  OBS Setting
+                </p>
               </div>
               <ArrowRight className="w-4 h-4 text-outline group-hover:text-primary" />
             </div>
-
           </div>
         </ScrollArea>
       </aside>

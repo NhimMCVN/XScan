@@ -1,8 +1,12 @@
+import { useMemo } from "react";
+import { useSelector } from "react-redux";
 import { Search, LogOut, Wallet } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { pathFromView } from "@/src/utils/appNavigation";
+import type { RootState } from "@/src/redux";
+import { isStreamerRole } from "@/src/utils/userRole";
 
 const NAV_ITEMS = [
   { id: "MATCHES", label: "TRẬN ĐẤU" },
@@ -16,24 +20,34 @@ interface TopNavProps {
 }
 
 export function TopNav({ currentView }: TopNavProps) {
+  const userRole = useSelector((s: RootState) => s.auth.user?.role);
+  const navItems = useMemo(
+    () =>
+      NAV_ITEMS.filter(
+        (item) => item.id !== "BECOME_STREAMER" || !isStreamerRole(userRole),
+      ),
+    [userRole],
+  );
+
   return (
     <nav className="h-16 border-b border-outline-variant/10 bg-surface flex items-center justify-between px-6 sticky top-0 z-50">
       <div className="flex items-center gap-8">
         <div
           className="flex items-center gap-2 cursor-pointer group"
           onClick={() =>
-            window.dispatchEvent(new CustomEvent("navigate", { detail: "MATCHES" }))
+            window.dispatchEvent(
+              new CustomEvent("navigate", { detail: "MATCHES" }),
+            )
           }
         >
           <div className="w-8 h-8 bg-primary flex items-center justify-center rotate-45 group-hover:scale-110 transition-transform">
-            <span className="text-on-primary font-bold text-xl -rotate-45">X</span>
+            <span className="text-on-primary font-bold text-xl -rotate-45">
+              X
+            </span>
           </div>
           <span
             className={cn(
-              "font-display font-bold text-2xl tracking-tighter italic transition-colors",
-              currentView === "MATCHES"
-                ? "text-primary"
-                : "text-primary/75 group-hover:text-primary",
+              "font-display font-bold text-2xl tracking-tighter italic transition-colors text-primary",
             )}
           >
             XScan
@@ -41,7 +55,7 @@ export function TopNav({ currentView }: TopNavProps) {
         </div>
 
         <div className="hidden md:flex items-center gap-6">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const active = currentView === item.id;
             return (
               <a
@@ -56,9 +70,7 @@ export function TopNav({ currentView }: TopNavProps) {
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "font-bold px-1 text-xs tracking-widest uppercase transition-colors",
-                  active
-                    ? "text-primary"
-                    : "text-outline hover:text-primary",
+                  active ? "text-primary" : "text-outline hover:text-primary",
                 )}
               >
                 {item.label}
@@ -71,8 +83,8 @@ export function TopNav({ currentView }: TopNavProps) {
       <div className="flex items-center gap-4 flex-1 max-w-md mx-8">
         <div className="relative w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-outline" />
-          <Input 
-            placeholder="TÌM KIẾM THÔNG TIN..." 
+          <Input
+            placeholder="TÌM KIẾM THÔNG TIN..."
             className="pl-10 bg-surface-container-highest border-none focus-visible:ring-primary/50 font-mono text-[10px] tracking-widest h-9"
           />
           <div className="absolute right-1 top-1 bottom-1 w-1 bg-primary/20" />
@@ -81,25 +93,29 @@ export function TopNav({ currentView }: TopNavProps) {
 
       <div className="flex items-center gap-3">
         {/* Role Toggle (Demo) */}
-        <Button
+        {/* <Button
           variant="outline"
           size="sm"
           className="text-[9px] font-bold tracking-widest uppercase border-primary/30 text-primary hover:bg-primary hover:text-black h-8"
           onClick={() => window.dispatchEvent(new CustomEvent('toggleRole'))}
         >
           ĐỔI ROLE
-        </Button>
+        </Button> */}
 
         {/* Wallet Info */}
         <div className="flex items-center gap-2 px-3 py-1.5 bg-surface-container-highest/50 border border-outline-variant/10">
           <Wallet className="w-4 h-4 text-primary" />
-          <span className="text-[10px] font-bold text-primary tracking-tight">2,450,000 VND</span>
+          <span className="text-[10px] font-bold text-primary tracking-tight">
+            2,450,000 VND
+          </span>
         </div>
 
         <button
           type="button"
           onClick={() =>
-            window.dispatchEvent(new CustomEvent("navigate", { detail: "PROFILE" }))
+            window.dispatchEvent(
+              new CustomEvent("navigate", { detail: "PROFILE" }),
+            )
           }
           aria-label="Hồ sơ"
           aria-current={currentView === "PROFILE" ? "page" : undefined}
@@ -111,20 +127,24 @@ export function TopNav({ currentView }: TopNavProps) {
           )}
         >
           <div className="w-full h-full bg-surface-container overflow-hidden">
-            <img 
-              src="https://picsum.photos/seed/user1/100/100" 
-              alt="User" 
+            <img
+              src="https://picsum.photos/seed/user1/100/100"
+              alt="User"
               className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all"
               referrerPolicy="no-referrer"
             />
           </div>
         </button>
         <div className="h-8 w-[1px] bg-outline-variant/20 mx-1" />
-        <Button 
-          variant="ghost" 
-          size="icon" 
+        <Button
+          variant="ghost"
+          size="icon"
           className="text-outline hover:text-destructive hover:bg-surface-container transition-colors"
-          onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'LOGOUT' }))}
+          onClick={() =>
+            window.dispatchEvent(
+              new CustomEvent("navigate", { detail: "LOGOUT" }),
+            )
+          }
         >
           <LogOut className="h-5 w-5" />
         </Button>

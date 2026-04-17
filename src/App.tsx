@@ -31,8 +31,6 @@ export default function App() {
   const [currentView, setCurrentView] = useState(() =>
     typeof window !== "undefined" ? getInitialViewFromLocation() : "MATCHES",
   );
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [role, setRole] = useState<"USER" | "STREAMER">("USER");
 
   useEffect(() => {
     const handleNavigate = (e: Event) => {
@@ -85,10 +83,10 @@ export default function App() {
         {currentView === "STREAMERS" ? (
           <StreamersView />
         ) : currentView === "PROFILE" ? (
-          role === "USER" ? (
-            <UserDashboardView />
-          ) : (
+          isStreamerRole(userRole) ? (
             <StreamerDashboardView />
+          ) : (
+            <UserDashboardView />
           )
         ) : currentView === "BECOME_STREAMER" ? (
           <StreamerRegistrationView />

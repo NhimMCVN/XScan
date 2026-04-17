@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { 
   Settings, Plus, Pencil, Trash2, Copy, Upload, Volume2, 
   Repeat, Zap, Eye, RefreshCw, ChevronDown, ChevronUp, Info
@@ -204,7 +204,7 @@ export function StreamerObsSettingsView() {
 }
 
 function SettingsForm() {
-  const Section = ({ title, children, className = "", rightContent }: { title: string, children: React.ReactNode, className?: string, rightContent?: React.ReactNode }) => (
+  const Section = ({ title, children, className = "", rightContent }: { title: string, children: ReactNode, className?: string, rightContent?: ReactNode }) => (
     <div className={`bg-[#1A1A1A] p-6 space-y-4 border-l-4 border-primary ${className}`}>
       <div className="flex justify-between items-center">
         <h4 className="font-extrabold uppercase tracking-widest text-primary flex items-center gap-2">
@@ -216,7 +216,7 @@ function SettingsForm() {
     </div>
   );
 
-  const Control = ({ label, children }: { label: string, children: React.ReactNode }) => (
+  const Control = ({ label, children }: { label: string, children: ReactNode }) => (
     <div className="bg-[#333333] p-4 space-y-1">
       <Label className="text-[10px] font-bold uppercase text-[#999999]">{label}</Label>
       {children}
