@@ -207,16 +207,16 @@ function StreamerTile({
         <Button
           type="button"
           onClick={() => onDonate(streamer)}
-          className={`font-bold tracking-[0.1em] text-[9px] h-10 cut-corner-sm border-none ${featured ? "bg-primary text-black hover:bg-primary/90" : "bg-surface-container-highest/50 text-foreground hover:bg-surface-container-highest border border-outline-variant/20"}`}
+          className={`bg-primary! text-black! hover:bg-primary/90! hover:cursor-pointer! font-bold tracking-widest text-[9px] h-10 cut-corner-sm border-none ${featured ? "bg-primary text-black hover:bg-primary/90" : "bg-surface-container-highest/50 text-foreground hover:bg-surface-container-highest border border-outline-variant/20"}`}
         >
           ỦNG HỘ
         </Button>
         <Button
           type="button"
           onClick={() => onChallenge(streamer)}
-          className="font-bold tracking-[0.1em] text-[9px] h-10 cut-corner-sm bg-surface-container-highest/50 text-foreground hover:text-primary border border-primary/40 hover:border-primary transition-all"
+          className="hover:cursor-pointer! font-bold tracking-widest text-[9px] h-10 cut-corner-sm bg-surface-container-highest/50 text-foreground hover:text-primary border border-primary/40 hover:border-primary transition-all"
         >
-          +1 THỬ THÁCH
+          TẠO THỬ THÁCH
         </Button>
       </div>
     </div>
@@ -339,7 +339,6 @@ export function StreamersView() {
   const donateSubject = selectedStreamer
     ? {
         type: "streamer" as const,
-        streamerId: selectedStreamer.id,
         name: selectedStreamer.name,
         avatar: selectedStreamer.avatar,
         level: selectedStreamer.level,

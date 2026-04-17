@@ -261,14 +261,28 @@ export function DonateModal({ isOpen, onClose, subject }: DonateModalProps) {
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+        <div
+          role="presentation"
+          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm"
+          onClick={handleClose}
+        >
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="relative w-full max-w-4xl bg-surface-container-low border border-outline-variant/20 flex flex-col md:flex-row overflow-hidden cut-corner shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-3xl max-h-[min(90dvh,720px)] bg-surface-container-low border border-outline-variant/20 flex flex-col md:flex-row overflow-hidden overflow-y-auto cut-corner shadow-[0_0_50px_rgba(0,0,0,0.5)]"
           >
-            <div className="w-full md:w-[40%] bg-surface-container-lowest p-12 flex flex-col items-center justify-center space-y-8 border-r border-outline-variant/10 relative">
+            <button
+              type="button"
+              onClick={handleClose}
+              aria-label="Đóng"
+              className="absolute right-2 top-2 z-[60] flex h-10 w-10 shrink-0 items-center justify-center rounded-sm border border-outline-variant/50 bg-surface-container-highest/95 text-foreground shadow-md transition-colors hover:border-primary/50 hover:bg-surface-container-highest hover:text-primary md:right-3 md:top-3"
+            >
+              <X className="h-5 w-5" strokeWidth={2.5} />
+            </button>
+
+            <div className="w-full md:w-[40%] bg-surface-container-lowest p-6 pt-14 sm:p-8 sm:pt-14 md:p-8 md:pt-8 flex flex-col items-center justify-center space-y-6 md:space-y-8 border-r border-outline-variant/10 relative">
               <div className="absolute top-0 left-0 w-full h-full opacity-[0.02] pointer-events-none overflow-hidden">
                 <div
                   className="w-full h-full"
@@ -359,16 +373,8 @@ export function DonateModal({ isOpen, onClose, subject }: DonateModalProps) {
               </div>
             </div>
 
-            <div className="flex-1 p-12 space-y-8 relative bg-surface-container-low min-h-[600px] flex flex-col">
-              <button
-                type="button"
-                onClick={handleClose}
-                className="absolute top-8 right-8 text-outline hover:text-primary transition-colors z-50"
-              >
-                <X className="w-6 h-6" />
-              </button>
-
-              <div className="space-y-1">
+            <div className="flex-1 p-6 sm:p-8 space-y-6 md:space-y-8 relative bg-surface-container-low min-h-0 flex flex-col md:min-h-[min(520px,60dvh)]">
+              <div className="space-y-1 pr-12">
                 <h3 className="text-2xl font-bold tracking-tight uppercase text-foreground">
                   GIAO DỊCH ỦNG HỘ
                 </h3>
