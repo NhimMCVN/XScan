@@ -7,7 +7,7 @@ import { customFetchBase } from './customFetchBase'
  * - POST   /obs-settings                  → tạo (CreateOBSSettingsDTO, bắt buộc streamerId)
  * - PUT    /obs-settings/my-settings      → cập nhật (UpdateOBSSettingsDTO)
  * - POST   /obs-settings/media/upload     → upload multipart
- * - DELETE /obs-settings/media?url=       → xóa file (chưa gắn UI)
+ * - DELETE /obs-settings/media?url=       → xóa file storage + gỡ URL (query `url` bắt buộc, OpenAPI)
  * - GET/POST /obs-settings/donation-levels, DELETE /obs-settings/donation-levels/{levelId}
  * - POST   /obs-settings/regenerate-token
  * - PUT    /obs-settings/security         → chưa gắn UI
@@ -201,8 +201,9 @@ export const obsApi = createApi({
     }),
     deleteMedia: builder.mutation<ApiResponse, string>({
       query: url => ({
-        url: `/obs-settings/media?url=${encodeURIComponent(url)}`,
+        url: '/obs-settings/media',
         method: 'DELETE',
+        params: { url },
       }),
       invalidatesTags: ['ObsSettings'],
     }),

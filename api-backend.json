@@ -654,6 +654,131 @@
         }
       }
     },
+    "/admin/reports": {
+      "get": {
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "description": "Admin xem toàn bộ báo cáo, có thể lọc theo type và status",
+        "produces": ["application/json"],
+        "tags": ["Admin"],
+        "summary": "[Admin] Danh sách báo cáo",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Lọc theo loại báo cáo (challenge_fraud | deposit_error)",
+            "name": "report_type",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Lọc theo trạng thái (pending | under_review | resolved | rejected)",
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "type": "integer",
+            "default": 1,
+            "description": "Trang",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "type": "integer",
+            "default": 20,
+            "description": "Số lượng mỗi trang",
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.PaginatedResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          }
+        }
+      }
+    },
+    "/admin/reports/{id}/status": {
+      "patch": {
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "description": "Admin cập nhật status và thêm ghi chú xử lý",
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "tags": ["Admin"],
+        "summary": "[Admin] Cập nhật trạng thái báo cáo",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Report ID",
+            "name": "id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "description": "Trạng thái mới",
+            "name": "request",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.UpdateReportStatusRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          }
+        }
+      }
+    },
     "/admin/streamer-applications": {
       "get": {
         "security": [
@@ -1846,6 +1971,191 @@
         }
       }
     },
+    "/admin/withdrawals": {
+      "get": {
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "description": "Admin views all monthly withdrawal transactions, optionally filtered by status",
+        "produces": ["application/json"],
+        "tags": ["Admin"],
+        "summary": "List monthly withdrawal transactions",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Filter by status (pending|completed|cancelled)",
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "type": "integer",
+            "default": 1,
+            "description": "Page number",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "type": "integer",
+            "default": 20,
+            "description": "Items per page",
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/backend-go_core_dtos.Response"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/backend-go_core_dtos.WithdrawalListResponseDTO"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          }
+        }
+      }
+    },
+    "/admin/withdrawals/{id}/approve": {
+      "patch": {
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "description": "Admin approves a monthly withdrawal: deducts balance and marks as completed",
+        "produces": ["application/json"],
+        "tags": ["Admin"],
+        "summary": "Approve a pending withdrawal",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Withdrawal transaction ID",
+            "name": "id",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          }
+        }
+      }
+    },
+    "/admin/withdrawals/{id}/reject": {
+      "patch": {
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "description": "Admin rejects a monthly withdrawal; balance is not touched",
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "tags": ["Admin"],
+        "summary": "Reject a pending withdrawal",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Withdrawal transaction ID",
+            "name": "id",
+            "in": "path",
+            "required": true
+          },
+          {
+            "description": "Rejection reason",
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.RejectWithdrawalDTO"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          }
+        }
+      }
+    },
     "/assets/groups/{groupId}": {
       "get": {
         "produces": ["application/json"],
@@ -2505,6 +2815,38 @@
             "description": "Items per page",
             "name": "limit",
             "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Filter by status (pending|accepted|rejected|completed|failed)",
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "type": "number",
+            "description": "Minimum challenge amount",
+            "name": "min_amount",
+            "in": "query"
+          },
+          {
+            "type": "number",
+            "description": "Maximum challenge amount",
+            "name": "max_amount",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "default": "created_at",
+            "description": "Sort field: created_at or amount",
+            "name": "sort_by",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "default": "desc",
+            "description": "Sort direction: asc or desc",
+            "name": "sort_order",
+            "in": "query"
           }
         ],
         "responses": {
@@ -2512,6 +2854,12 @@
             "description": "OK",
             "schema": {
               "$ref": "#/definitions/backend-go_core_dtos.PaginatedResponse"
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
             }
           }
         }
@@ -2541,6 +2889,38 @@
             "description": "Items per page",
             "name": "limit",
             "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Filter by status (pending|accepted|rejected|completed|failed)",
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "type": "number",
+            "description": "Minimum challenge amount",
+            "name": "min_amount",
+            "in": "query"
+          },
+          {
+            "type": "number",
+            "description": "Maximum challenge amount",
+            "name": "max_amount",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "default": "created_at",
+            "description": "Sort field: created_at or amount",
+            "name": "sort_by",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "default": "desc",
+            "description": "Sort direction: asc or desc",
+            "name": "sort_order",
+            "in": "query"
           }
         ],
         "responses": {
@@ -2548,6 +2928,12 @@
             "description": "OK",
             "schema": {
               "$ref": "#/definitions/backend-go_core_dtos.PaginatedResponse"
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
             }
           }
         }
@@ -6156,7 +6542,7 @@
             "BearerAuth": []
           }
         ],
-        "description": "Delete a media file from storage",
+        "description": "Remove a media URL from OBS settings and delete the file from storage",
         "consumes": ["application/json"],
         "produces": ["application/json"],
         "tags": ["OBS Settings"],
@@ -6185,6 +6571,12 @@
           },
           "401": {
             "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "schema": {
               "$ref": "#/definitions/backend-go_core_dtos.Response"
             }
@@ -6650,6 +7042,18 @@
             "name": "streamerId",
             "in": "path",
             "required": true
+          },
+          {
+            "type": "string",
+            "description": "Sort field: total_amount | total_donations | page_views (default: is_default then created_at)",
+            "name": "sort_by",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Sort direction: asc | desc (default: desc)",
+            "name": "sort_order",
+            "in": "query"
           }
         ],
         "responses": {
@@ -6887,6 +7291,136 @@
                   }
                 }
               ]
+            }
+          }
+        }
+      }
+    },
+    "/reports": {
+      "post": {
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "description": "Người dùng gửi báo cáo (gian lận challenge, lỗi nạp tiền, ...)",
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "tags": ["Reports"],
+        "summary": "Tạo báo cáo",
+        "parameters": [
+          {
+            "description": "Thông tin báo cáo",
+            "name": "request",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.CreateReportRequest"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          }
+        }
+      }
+    },
+    "/reports/me": {
+      "get": {
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "description": "Lấy danh sách các báo cáo do người dùng hiện tại gửi",
+        "produces": ["application/json"],
+        "tags": ["Reports"],
+        "summary": "Lấy báo cáo của tôi",
+        "parameters": [
+          {
+            "type": "integer",
+            "default": 1,
+            "description": "Trang",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "type": "integer",
+            "default": 20,
+            "description": "Số lượng mỗi trang",
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.PaginatedResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          }
+        }
+      }
+    },
+    "/reports/{id}": {
+      "get": {
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "description": "Lấy thông tin chi tiết một báo cáo (chủ báo cáo hoặc admin)",
+        "produces": ["application/json"],
+        "tags": ["Reports"],
+        "summary": "Lấy chi tiết báo cáo",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Report ID",
+            "name": "id",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
             }
           }
         }
@@ -7531,6 +8065,30 @@
             "in": "query"
           },
           {
+            "type": "string",
+            "description": "Sort field: created_at (default) or amount",
+            "name": "sort_by",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Sort direction: desc (default) or asc",
+            "name": "sort_order",
+            "in": "query"
+          },
+          {
+            "type": "number",
+            "description": "Minimum amount filter (inclusive)",
+            "name": "min_amount",
+            "in": "query"
+          },
+          {
+            "type": "number",
+            "description": "Maximum amount filter (inclusive)",
+            "name": "max_amount",
+            "in": "query"
+          },
+          {
             "type": "integer",
             "default": 1,
             "description": "Page number",
@@ -7554,6 +8112,160 @@
           },
           "400": {
             "description": "Bad Request",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          }
+        }
+      }
+    },
+    "/transactions/history/matches/donated": {
+      "get": {
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "description": "Returns all streamer matches the user has donated to, with their personal donation stats per match",
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "tags": ["Transactions"],
+        "summary": "Get matches donated to by the authenticated user (donor)",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Match status filter (open, active, completed, cancelled)",
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Start date (YYYY-MM-DD)",
+            "name": "from_date",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "End date (YYYY-MM-DD)",
+            "name": "to_date",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Sort field: created_at (default) or amount (my total donated)",
+            "name": "sort_by",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Sort direction: desc (default) or asc",
+            "name": "sort_order",
+            "in": "query"
+          },
+          {
+            "type": "integer",
+            "default": 1,
+            "description": "Page number",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "type": "integer",
+            "default": 20,
+            "description": "Items per page (max 100)",
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          }
+        }
+      }
+    },
+    "/transactions/history/matches/participated": {
+      "get": {
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "description": "Returns all streamer matches the authenticated user has participated in (as a team member), past and ongoing",
+        "consumes": ["application/json"],
+        "produces": ["application/json"],
+        "tags": ["Transactions"],
+        "summary": "Get matches participated in by the authenticated streamer",
+        "parameters": [
+          {
+            "type": "string",
+            "description": "Match status filter (open, active, completed, cancelled)",
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Start date (YYYY-MM-DD)",
+            "name": "from_date",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "End date (YYYY-MM-DD)",
+            "name": "to_date",
+            "in": "query"
+          },
+          {
+            "type": "string",
+            "description": "Sort direction: desc (default) or asc",
+            "name": "sort_order",
+            "in": "query"
+          },
+          {
+            "type": "integer",
+            "default": 1,
+            "description": "Page number",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "type": "integer",
+            "default": 20,
+            "description": "Items per page (max 100)",
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
             "schema": {
               "$ref": "#/definitions/backend-go_core_dtos.Response"
             }
@@ -9075,6 +9787,112 @@
           }
         }
       }
+    },
+    "/withdrawals/me": {
+      "get": {
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "description": "Streamer views their own monthly withdrawal transaction history",
+        "produces": ["application/json"],
+        "tags": ["Withdrawals"],
+        "summary": "Get my withdrawal history",
+        "parameters": [
+          {
+            "type": "integer",
+            "default": 1,
+            "description": "Page number",
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "type": "integer",
+            "default": 20,
+            "description": "Items per page",
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/backend-go_core_dtos.Response"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/backend-go_core_dtos.WithdrawalListResponseDTO"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          }
+        }
+      }
+    },
+    "/withdrawals/request": {
+      "post": {
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "description": "Streamer requests a monthly withdrawal between the 15th and 20th of the month. Only one request per calendar month is allowed. Only VND currency is supported.",
+        "produces": ["application/json"],
+        "tags": ["Withdrawals"],
+        "summary": "Request a monthly withdrawal",
+        "responses": {
+          "201": {
+            "description": "Created",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/backend-go_core_dtos.Response"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/backend-go_core_dtos.WithdrawalItemDTO"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "schema": {
+              "$ref": "#/definitions/backend-go_core_dtos.Response"
+            }
+          }
+        }
+      }
     }
   },
   "definitions": {
@@ -9999,6 +10817,28 @@
         "reason": {
           "type": "string",
           "enum": ["spam", "harassment", "misinformation", "off_topic", "other"]
+        }
+      }
+    },
+    "backend-go_core_dtos.CreateReportRequest": {
+      "type": "object",
+      "required": ["description", "reportType"],
+      "properties": {
+        "description": {
+          "type": "string",
+          "maxLength": 2000,
+          "minLength": 10
+        },
+        "imageUrl": {
+          "description": "URL ảnh bằng chứng (tuỳ chọn).",
+          "type": "string"
+        },
+        "referenceId": {
+          "description": "ID của đối tượng bị báo cáo (challenge ID, transaction ID, ...).\nBắt buộc khi reportType = \"challenge_fraud\".",
+          "type": "string"
+        },
+        "reportType": {
+          "$ref": "#/definitions/backend-go_core_model.ReportType"
         }
       }
     },
@@ -11329,6 +12169,15 @@
         }
       }
     },
+    "backend-go_core_dtos.RejectWithdrawalDTO": {
+      "type": "object",
+      "required": ["reason"],
+      "properties": {
+        "reason": {
+          "type": "string"
+        }
+      }
+    },
     "backend-go_core_dtos.ReportListDTO": {
       "type": "object",
       "properties": {
@@ -12210,6 +13059,18 @@
         }
       }
     },
+    "backend-go_core_dtos.UpdateReportStatusRequest": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "adminNote": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/backend-go_core_model.ReportStatus"
+        }
+      }
+    },
     "backend-go_core_dtos.UpdateSecurityDTO": {
       "type": "object",
       "properties": {
@@ -12476,6 +13337,70 @@
         }
       }
     },
+    "backend-go_core_dtos.WithdrawalItemDTO": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "currency": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "failureReason": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "processedAt": {
+          "type": "string"
+        },
+        "reference": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "walletId": {
+          "type": "string"
+        }
+      }
+    },
+    "backend-go_core_dtos.WithdrawalListResponseDTO": {
+      "type": "object",
+      "properties": {
+        "limit": {
+          "type": "integer"
+        },
+        "page": {
+          "type": "integer"
+        },
+        "total": {
+          "type": "integer"
+        },
+        "totalPages": {
+          "type": "integer"
+        },
+        "withdrawals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/backend-go_core_dtos.WithdrawalItemDTO"
+          }
+        }
+      }
+    },
     "backend-go_core_model.PaymentMethod": {
       "type": "string",
       "enum": ["wallet", "bank_transfer", "qrbank"],
@@ -12484,6 +13409,21 @@
         "PaymentMethodBankTransfer",
         "PaymentMethodQRBank"
       ]
+    },
+    "backend-go_core_model.ReportStatus": {
+      "type": "string",
+      "enum": ["pending", "under_review", "resolved", "rejected"],
+      "x-enum-varnames": [
+        "ReportStatusPending",
+        "ReportStatusUnderReview",
+        "ReportStatusResolved",
+        "ReportStatusRejected"
+      ]
+    },
+    "backend-go_core_model.ReportType": {
+      "type": "string",
+      "enum": ["challenge_fraud", "deposit_error"],
+      "x-enum-varnames": ["ReportTypeChallengeFraud", "ReportTypeDepositError"]
     },
     "backend-go_core_service.AlertQueueStatusDTO": {
       "type": "object",
