@@ -55,6 +55,7 @@ import {
   type MediaUploadResponse,
   type ImageSettings,
   type SoundSettings,
+  type OBSSettingsResponse,
 } from "@/src/redux/queries/obs.api";
 
 const UNLIMITED_MAX_SENTINEL = 9e15;
@@ -168,6 +169,70 @@ function buildGlobalSettingsAsConfiguration(
   return Object.keys(out).length ? out : undefined;
 }
 
+/** BE có thể trả `configuration.widgetUrl` riêng cho từng mức. */
+function levelConfigurationWidgetUrl(d: DonationLevelDTO): string | undefined {
+  const c = d.configuration;
+  if (!c || typeof c !== "object") return undefined;
+  const w = (c as Record<string, unknown>).widgetUrl;
+  return typeof w === "string" && w.trim() ? w.trim() : undefined;
+}
+
+/**
+ * URL hiển thị trong OBS: theo mức donation đang bật (`isEnabled`),
+ * hoặc URL gốc (không gắn level) khi không có mức nào bật → cấu hình default.
+ * Nếu không có `widgetUrl` từ BE, ghép `/widget-public/init/{streamerId}/{token}`.
+ */
+function buildObsWidgetDisplayUrl(opts: {
+  settings?: OBSSettingsResponse;
+  profileStreamerId?: string;
+  /** `undefined` = chọn cấu hình mặc định (global). */
+  selectedLevelRouteId?: string;
+  apiLevels: DonationLevelDTO[];
+}): string {
+  const { settings, profileStreamerId, selectedLevelRouteId, apiLevels } = opts;
+  if (!settings) return "";
+
+  const sid =
+    (typeof settings.streamerId === "string" && settings.streamerId) ||
+    profileStreamerId ||
+    "";
+  const tok =
+    typeof settings.alertToken === "string" ? settings.alertToken : "";
+
+  let base = "";
+  if (typeof settings.widgetUrl === "string" && settings.widgetUrl.trim()) {
+    base = absoluteApiUrl(settings.widgetUrl.trim());
+  } else if (sid && tok) {
+    base = absoluteApiUrl(
+      `/widget-public/init/${encodeURIComponent(sid)}/${encodeURIComponent(tok)}`,
+    );
+  }
+  if (!base) return "";
+
+  if (selectedLevelRouteId) {
+    const dto = apiLevels.find(
+      (d) => donationLevelRouteId(d) === selectedLevelRouteId,
+    );
+    const override = dto ? levelConfigurationWidgetUrl(dto) : undefined;
+    if (override) return absoluteApiUrl(override);
+  }
+
+  try {
+    const u = new URL(base);
+    if (selectedLevelRouteId) {
+      u.searchParams.set("donationLevelId", selectedLevelRouteId);
+    } else {
+      u.searchParams.delete("donationLevelId");
+      u.searchParams.delete("levelId");
+    }
+    return u.href;
+  } catch {
+    if (!selectedLevelRouteId) return base;
+    const sep = base.includes("?") ? "&" : "?";
+    return `${base}${sep}donationLevelId=${encodeURIComponent(selectedLevelRouteId)}`;
+  }
+}
+
 export function StreamerObsSettingsView() {
   const { data: profileRes, isLoading: profileLoading } = useGetProfileQuery();
   const profile = profileRes?.success ? profileRes.data : undefined;
@@ -186,11 +251,6 @@ export function StreamerObsSettingsView() {
   });
 
   const settings = settingsRes?.success ? settingsRes.data : undefined;
-  const widgetUrlResolved = absoluteApiUrl(
-    typeof settings?.widgetUrl === "string"
-      ? settings.widgetUrl
-      : undefined,
-  );
 
   const [createSettings, { isLoading: creatingSettings }] =
     useCreateSettingsMutation();
@@ -257,11 +317,33 @@ export function StreamerObsSettingsView() {
           name: dto.levelName || "Mức",
           min,
           max,
-          active: dto.isEnabled !== false,
+          active: dto.isEnabled === true,
           isOpen: openByListKey[listKey] ?? false,
         };
       }),
     [apiLevels, openByListKey],
+  );
+
+  /** Mức donation đang bật (radio) — không có thì URL dùng cấu hình default. */
+  const selectedEnabledDonationRouteId = useMemo(() => {
+    for (const d of apiLevels) {
+      if (d.isEnabled === true) {
+        const id = donationLevelRouteId(d);
+        if (id) return id;
+      }
+    }
+    return undefined;
+  }, [apiLevels]);
+
+  const selectedWidgetDisplayUrl = useMemo(
+    () =>
+      buildObsWidgetDisplayUrl({
+        settings,
+        profileStreamerId: streamerId,
+        selectedLevelRouteId: selectedEnabledDonationRouteId,
+        apiLevels,
+      }),
+    [settings, streamerId, selectedEnabledDonationRouteId, apiLevels],
   );
 
   const displayRows: DisplayRow[] = useMemo(() => {
@@ -271,14 +353,22 @@ export function StreamerObsSettingsView() {
         kind: "global",
         listKey: OBS_GLOBAL_DEFAULT_LIST_KEY,
         isOpen: openByListKey[OBS_GLOBAL_DEFAULT_LIST_KEY] ?? false,
-        widgetActive: settings.isActive !== false,
+        /** Radio với mức donation: chỉ ON khi không có mức nào bật và widget default đang bật. */
+        widgetActive:
+          !selectedEnabledDonationRouteId && settings.isActive !== false,
       });
     }
     for (const l of donationLevelsUi) {
       rows.push({ kind: "level", ...l });
     }
     return rows;
-  }, [settingsRes?.success, settings, donationLevelsUi, openByListKey]);
+  }, [
+    settingsRes?.success,
+    settings,
+    donationLevelsUi,
+    openByListKey,
+    selectedEnabledDonationRouteId,
+  ]);
 
   const toggleRowOpen = (listKey: string) => {
     setOpenByListKey((m) => ({ ...m, [listKey]: !m[listKey] }));
@@ -297,13 +387,42 @@ export function StreamerObsSettingsView() {
   const [addError, setAddError] = useState<string | null>(null);
   const [addSaving, setAddSaving] = useState(false);
 
+  /** Radio-style: chỉ một donation level được `isEnabled` tại một thời điểm. */
   const toggleLevelActive = async (routeId: string, next: boolean) => {
     if (!routeId) return;
     try {
-      await updateLevel({
-        levelId: routeId,
-        body: { isEnabled: next },
-      }).unwrap();
+      if (next) {
+        const otherIds = apiLevels
+          .map((d) => donationLevelRouteId(d))
+          .filter((id) => Boolean(id) && id !== routeId);
+        await Promise.all(
+          otherIds.map((id) =>
+            updateLevel({ levelId: id, body: { isEnabled: false } }).unwrap(),
+          ),
+        );
+        await updateLevel({
+          levelId: routeId,
+          body: { isEnabled: true },
+        }).unwrap();
+        await updateMySettings({ isActive: false }).unwrap();
+        await refetchSettings();
+        const row = donationLevelsUi.find((l) => l.routeId === routeId);
+        if (row) setOpenByListKey({ [row.listKey]: true });
+      } else {
+        await updateLevel({
+          levelId: routeId,
+          body: { isEnabled: false },
+        }).unwrap();
+        const othersStillOn = apiLevels.some((d) => {
+          const id = donationLevelRouteId(d);
+          return id && id !== routeId && d.isEnabled === true;
+        });
+        if (!othersStillOn) {
+          await updateMySettings({ isActive: true }).unwrap();
+          await refetchSettings();
+          setOpenByListKey({ [OBS_GLOBAL_DEFAULT_LIST_KEY]: true });
+        }
+      }
     } catch (e) {
       console.warn(getMutationError(e));
     }
@@ -311,12 +430,67 @@ export function StreamerObsSettingsView() {
 
   const toggleGlobalWidgetActive = async (next: boolean) => {
     try {
+      if (next) {
+        const ids = apiLevels
+          .map((d) => donationLevelRouteId(d))
+          .filter((id): id is string => Boolean(id));
+        await Promise.all(
+          ids.map((id) =>
+            updateLevel({ levelId: id, body: { isEnabled: false } }).unwrap(),
+          ),
+        );
+      }
       await updateMySettings({ isActive: next }).unwrap();
       await refetchSettings();
+      if (next) {
+        setOpenByListKey({ [OBS_GLOBAL_DEFAULT_LIST_KEY]: true });
+      }
     } catch (e) {
       console.warn(getMutationError(e));
     }
   };
+
+  /** Không còn mức donation nào bật → bật widget mặc định + mở accordion default. */
+  useEffect(() => {
+    if (
+      !settingsRes?.success ||
+      !settings ||
+      profileLoading ||
+      !streamerId ||
+      levelsLoading
+    )
+      return;
+
+    const anyLevelEnabled = apiLevels.some(
+      (d) => d.isEnabled === true && donationLevelRouteId(d),
+    );
+    if (anyLevelEnabled) return;
+
+    if (settings.isActive !== true) {
+      void (async () => {
+        try {
+          await updateMySettings({ isActive: true }).unwrap();
+          await refetchSettings();
+        } catch {
+          /* ignore */
+        }
+      })();
+    }
+
+    setOpenByListKey((prev) => {
+      if (prev[OBS_GLOBAL_DEFAULT_LIST_KEY]) return prev;
+      return { ...prev, [OBS_GLOBAL_DEFAULT_LIST_KEY]: true };
+    });
+  }, [
+    apiLevels,
+    settings,
+    settingsRes?.success,
+    streamerId,
+    profileLoading,
+    levelsLoading,
+    updateMySettings,
+    refetchSettings,
+  ]);
 
   const cloneLevel = async (routeId: string) => {
     const src = apiLevels.find((d) => donationLevelRouteId(d) === routeId);
@@ -447,15 +621,15 @@ export function StreamerObsSettingsView() {
   };
 
   const copyWidgetUrl = useCallback(async () => {
-    if (!widgetUrlResolved) return;
+    if (!selectedWidgetDisplayUrl) return;
     try {
-      await navigator.clipboard.writeText(widgetUrlResolved);
+      await navigator.clipboard.writeText(selectedWidgetDisplayUrl);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
       console.warn("Không copy được URL.");
     }
-  }, [widgetUrlResolved]);
+  }, [selectedWidgetDisplayUrl]);
 
   const onRegenerateToken = async () => {
     try {
@@ -486,7 +660,10 @@ export function StreamerObsSettingsView() {
       })()
     : null;
 
-  const isWidgetActive = settings?.isActive !== false;
+  /** Widget coi là đang dùng: default bật hoặc đang chọn một mức donation. */
+  const isWidgetActive =
+    Boolean(selectedEnabledDonationRouteId) ||
+    (settings?.isActive !== false && !selectedEnabledDonationRouteId);
 
   return (
     <div className="flex-1 flex flex-col bg-surface-container-lowest relative overflow-hidden">
@@ -545,10 +722,14 @@ export function StreamerObsSettingsView() {
                   type="button"
                   variant="outline"
                   className="rounded-none"
-                  disabled={!widgetUrlResolved}
+                  disabled={!selectedWidgetDisplayUrl}
                   onClick={() => {
-                    if (widgetUrlResolved)
-                      window.open(widgetUrlResolved, "_blank", "noreferrer");
+                    if (selectedWidgetDisplayUrl)
+                      window.open(
+                        selectedWidgetDisplayUrl,
+                        "_blank",
+                        "noreferrer",
+                      );
                   }}
                 >
                   <Eye className="w-4 h-4 mr-2" /> Xem widget
@@ -572,14 +753,14 @@ export function StreamerObsSettingsView() {
             <div className="flex gap-2">
               <Input
                 readOnly
-                value={widgetUrlResolved || "—"}
+                value={selectedWidgetDisplayUrl || "—"}
                 className="bg-surface-container-highest/30 border-outline-variant/20 rounded-none font-mono text-xs"
               />
               <Button
                 type="button"
                 variant="outline"
                 className="rounded-none shrink-0"
-                disabled={!widgetUrlResolved}
+                disabled={!selectedWidgetDisplayUrl}
                 onClick={() => void copyWidgetUrl()}
               >
                 {copied ? (
@@ -678,12 +859,12 @@ export function StreamerObsSettingsView() {
                       type="button"
                       variant="ghost"
                       size="icon"
-                      disabled={!widgetUrlResolved}
+                      disabled={!selectedWidgetDisplayUrl}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (widgetUrlResolved)
+                        if (selectedWidgetDisplayUrl)
                           window.open(
-                            widgetUrlResolved,
+                            selectedWidgetDisplayUrl,
                             "_blank",
                             "noreferrer",
                           );
