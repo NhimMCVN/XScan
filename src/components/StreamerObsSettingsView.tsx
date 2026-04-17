@@ -38,7 +38,8 @@ import { Slider } from "@/components/ui/slider";
 import { Select, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { API_URL } from "@/src/constants";
+import { getPublicAppOrigin } from "@/src/constants";
+import { absoluteApiUrl } from "@/src/utils/absoluteApiUrl";
 import { useGetProfileQuery } from "@/src/redux/queries/user.api";
 import {
   useGetMySettingsQuery,
@@ -64,14 +65,6 @@ const UNLIMITED_MAX_SENTINEL = 9e15;
 /** Luôn render dòng đầu: cấu hình gốc trên `my-settings` (không phải một donation level). */
 const OBS_GLOBAL_DEFAULT_LIST_KEY = "__obs_global_default__";
 
-function absoluteApiUrl(maybe: string | undefined): string {
-  if (!maybe) return "";
-  const t = String(maybe).trim();
-  if (!t) return "";
-  if (t.startsWith("http://") || t.startsWith("https://")) return t;
-  return `${API_URL}${t.startsWith("/") ? "" : "/"}${t}`;
-}
-
 function getMutationError(e: unknown): string {
   if (!e || typeof e !== "object") return "Có lỗi xảy ra.";
   const x = e as Record<string, unknown>;
@@ -94,7 +87,8 @@ const OBS_SWITCH_OFF_TRACK =
   "data-unchecked:bg-zinc-300 dark:data-unchecked:bg-zinc-500 data-unchecked:border data-unchecked:border-outline-variant/50 dark:data-unchecked:border-zinc-400/50";
 
 const OBS_SWITCH_ROW_CLASS =
-  "data-checked:bg-primary dark:data-checked:bg-primary " + OBS_SWITCH_OFF_TRACK;
+  "data-checked:bg-primary dark:data-checked:bg-primary " +
+  OBS_SWITCH_OFF_TRACK;
 
 function parseDonationLevelsPayload(
   res: ApiResponse<{ donationLevels?: DonationLevelDTO[] }> | undefined,
@@ -222,56 +216,60 @@ function buildGlobalSettingsAsConfiguration(
   return Object.keys(out).length ? out : undefined;
 }
 
-/** BE có thể trả `configuration.widgetUrl` riêng cho từng mức. */
-function levelConfigurationWidgetUrl(d: DonationLevelDTO): string | undefined {
-  const c = d.configuration;
-  if (!c || typeof c !== "object") return undefined;
-  const w = (c as Record<string, unknown>).widgetUrl;
-  return typeof w === "string" && w.trim() ? w.trim() : undefined;
+const WIDGET_PUBLIC_ALERT_IN_URL =
+  /\/widget-public\/alert\/([^/]+)\/([^/?#]+)/i;
+
+function parseStreamerTokenFromWidgetUrl(
+  widgetUrl: string,
+): { streamerId: string; token: string } | null {
+  const m = widgetUrl.match(WIDGET_PUBLIC_ALERT_IN_URL);
+  if (!m?.[1] || !m?.[2]) return null;
+  try {
+    return {
+      streamerId: decodeURIComponent(m[1]),
+      token: decodeURIComponent(m[2]),
+    };
+  } catch {
+    return { streamerId: m[1], token: m[2] };
+  }
 }
 
 /**
- * URL hiển thị trong OBS: theo mức donation đang bật (`isEnabled`),
- * hoặc URL gốc (không gắn level) khi không có mức nào bật → cấu hình default.
- * Nếu không có `widgetUrl` từ BE, ghép `/widget-public/init/{streamerId}/{token}`.
+ * URL «Xem widget» / copy: cùng origin với app, `/widget/alert/{streamerId}/{token}`
+ * (giống x-scan-fe-v2: rewrite từ `widgetUrl` nếu có đoạn `.../widget-public/alert/...`).
+ * Query `donationLevelId` khi đang chọn một mức donation bật (radio).
  */
 function buildObsWidgetDisplayUrl(opts: {
   settings?: OBSSettingsResponse;
   profileStreamerId?: string;
-  /** `undefined` = chọn cấu hình mặc định (global). */
+  /** `undefined` = cấu hình mặc định (không gắn level). */
   selectedLevelRouteId?: string;
-  apiLevels: DonationLevelDTO[];
 }): string {
-  const { settings, profileStreamerId, selectedLevelRouteId, apiLevels } = opts;
+  const { settings, profileStreamerId, selectedLevelRouteId } = opts;
   if (!settings) return "";
 
+  const origin = getPublicAppOrigin();
+  if (!origin) return "";
+
+  const wu =
+    typeof settings.widgetUrl === "string" ? settings.widgetUrl.trim() : "";
+  const fromApi = wu ? parseStreamerTokenFromWidgetUrl(wu) : null;
+
   const sid =
+    fromApi?.streamerId ||
     (typeof settings.streamerId === "string" && settings.streamerId) ||
     profileStreamerId ||
     "";
   const tok =
-    typeof settings.alertToken === "string" ? settings.alertToken : "";
+    fromApi?.token ||
+    (typeof settings.alertToken === "string" ? settings.alertToken : "");
 
-  let base = "";
-  if (typeof settings.widgetUrl === "string" && settings.widgetUrl.trim()) {
-    base = absoluteApiUrl(settings.widgetUrl.trim());
-  } else if (sid && tok) {
-    base = absoluteApiUrl(
-      `/widget-public/init/${encodeURIComponent(sid)}/${encodeURIComponent(tok)}`,
-    );
-  }
-  if (!base) return "";
+  if (!sid || !tok) return "";
 
-  if (selectedLevelRouteId) {
-    const dto = apiLevels.find(
-      (d) => donationLevelRouteId(d) === selectedLevelRouteId,
-    );
-    const override = dto ? levelConfigurationWidgetUrl(dto) : undefined;
-    if (override) return absoluteApiUrl(override);
-  }
+  const path = `/widget/alert/${encodeURIComponent(sid)}/${encodeURIComponent(tok)}`;
 
   try {
-    const u = new URL(base);
+    const u = new URL(`${origin}${path}`);
     if (selectedLevelRouteId) {
       u.searchParams.set("donationLevelId", selectedLevelRouteId);
     } else {
@@ -280,9 +278,8 @@ function buildObsWidgetDisplayUrl(opts: {
     }
     return u.href;
   } catch {
-    if (!selectedLevelRouteId) return base;
-    const sep = base.includes("?") ? "&" : "?";
-    return `${base}${sep}donationLevelId=${encodeURIComponent(selectedLevelRouteId)}`;
+    if (!selectedLevelRouteId) return `${origin}${path}`;
+    return `${origin}${path}?donationLevelId=${encodeURIComponent(selectedLevelRouteId)}`;
   }
 }
 
@@ -397,9 +394,8 @@ export function StreamerObsSettingsView() {
         settings,
         profileStreamerId: streamerId,
         selectedLevelRouteId: selectedEnabledDonationRouteId,
-        apiLevels,
       }),
-    [settings, streamerId, selectedEnabledDonationRouteId, apiLevels],
+    [settings, streamerId, selectedEnabledDonationRouteId],
   );
 
   const displayRows: DisplayRow[] = useMemo(() => {
@@ -831,7 +827,7 @@ export function StreamerObsSettingsView() {
                   Dán địa chỉ này vào OBS → Browser Source.
                 </p>
               </div>
-              <div className="flex gap-2 flex-wrap justify-end">
+              <div className="flex gap-2 flex-wrap justify-end items-center">
                 <Badge
                   className={
                     isWidgetActive
@@ -1310,9 +1306,7 @@ function SettingsForm(
 
   const imageVideoInputRef = useRef<HTMLInputElement>(null);
   const soundInputRef = useRef<HTMLInputElement>(null);
-  const [uploadSlot, setUploadSlot] = useState<null | "visual" | "sound">(
-    null,
-  );
+  const [uploadSlot, setUploadSlot] = useState<null | "visual" | "sound">(null);
   const [uploadMedia, { isLoading: uploading }] = useUploadMediaMutation();
   const [deleteMedia, { isLoading: deleting }] = useDeleteMediaMutation();
   const [updateLevel] = useUpdateDonationLevelMutation();

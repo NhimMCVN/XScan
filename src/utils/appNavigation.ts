@@ -73,3 +73,35 @@ export function getInitialViewFromLocation(): string {
 export function pathsEqual(a: string, b: string): boolean {
   return normalizePathname(a) === normalizePathname(b);
 }
+
+/** Trang donation công khai: `/d/{customUrl}` (giống x-scan-fe-v2 `app/d/[customUrl]`). */
+export function parseDonationLinkCustomUrl(pathname: string): string | null {
+  const n = normalizePathname(pathname);
+  if (n === "/") return null;
+  const m = /^\/d\/(.+)/i.exec(n);
+  if (!m?.[1]?.trim()) return null;
+  try {
+    return decodeURIComponent(m[1]);
+  } catch {
+    return m[1];
+  }
+}
+
+/**
+ * Trang widget alert (khớp x-scan-fe-v2): `/widget/alert/{streamerId}/{token}`.
+ */
+export function parseObsWidgetAlertPath(
+  pathname: string,
+): { streamerId: string; token: string } | null {
+  const n = normalizePathname(pathname);
+  const m = /^\/widget\/alert\/([^/]+)\/([^/]+)$/i.exec(n);
+  if (!m?.[1] || !m[2]) return null;
+  try {
+    return {
+      streamerId: decodeURIComponent(m[1]),
+      token: decodeURIComponent(m[2]),
+    };
+  } catch {
+    return { streamerId: m[1], token: m[2] };
+  }
+}

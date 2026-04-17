@@ -13,12 +13,16 @@ import { DonorChallengesView } from "./components/DonorChallengesView";
 import { StreamerDonationsView } from "./components/StreamerDonationsView";
 import { StreamerDonationLinksView } from "./components/StreamerDonationLinksView";
 import { StreamerObsSettingsView } from "./components/StreamerObsSettingsView";
+import { DonationLinkPageView } from "./components/DonationLinkPageView";
+import { WidgetAlertView } from "./components/widget-alert/WidgetAlertView";
 import { AuthView } from "./components/AuthView";
 import { useAppDispatch, type RootState } from "./redux";
 import { logout } from "./redux/slices/auth.slice";
 import { isStreamerRole } from "./utils/userRole";
 import {
   getInitialViewFromLocation,
+  parseDonationLinkCustomUrl,
+  parseObsWidgetAlertPath,
   pathFromView,
   pathsEqual,
   viewFromPathname,
@@ -48,6 +52,8 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (parseObsWidgetAlertPath(window.location.pathname)) return;
+    if (parseDonationLinkCustomUrl(window.location.pathname)) return;
     const desired = pathFromView(currentView);
     if (pathsEqual(window.location.pathname, desired)) return;
     window.history.replaceState(
@@ -64,6 +70,22 @@ export default function App() {
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
+
+  if (typeof window !== "undefined") {
+    const obsPreview = parseObsWidgetAlertPath(window.location.pathname);
+    if (obsPreview) {
+      return (
+        <WidgetAlertView
+          streamerId={obsPreview.streamerId}
+          token={obsPreview.token}
+        />
+      );
+    }
+    const donationSlug = parseDonationLinkCustomUrl(window.location.pathname);
+    if (donationSlug) {
+      return <DonationLinkPageView customUrl={donationSlug} />;
+    }
+  }
 
   if (!isAuthenticated) {
     return <AuthView />;
