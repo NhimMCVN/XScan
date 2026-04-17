@@ -58,19 +58,11 @@ export function getInitialViewFromLocation(): string {
   const hash = window.location.hash;
   if (hash && /^#\/?/.test(hash)) {
     const legacy =
-      hash
-        .replace(/^#\/?/, "")
-        .split("/")[0]
-        ?.trim()
-        .toLowerCase() ?? "";
+      hash.replace(/^#\/?/, "").split("/")[0]?.trim().toLowerCase() ?? "";
     const fromHash = SEGMENT_TO_VIEW[legacy];
     if (fromHash) {
       const next = pathFromView(fromHash);
-      window.history.replaceState(
-        null,
-        "",
-        `${next}${window.location.search}`,
-      );
+      window.history.replaceState(null, "", `${next}${window.location.search}`);
       return fromHash;
     }
   }
