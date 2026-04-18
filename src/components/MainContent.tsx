@@ -11,6 +11,7 @@ import {
 import { absoluteApiUrl } from "@/src/utils/absoluteApiUrl";
 import {
   DEFAULT_HOME_GAME_ZONE_ID,
+  HOME_DEMO_MATCH_ZONE_ID,
   HOME_GAME_ZONES,
 } from "@/src/constants/homeGameZones";
 
@@ -82,13 +83,13 @@ const MATCHES = [
   {
     sessionId: "99482",
     team1: {
-      name: "TEAM_VALOR",
+      name: "TEAM_CSDN",
       image: "https://picsum.photos/seed/t1/200/200",
       amount: "12,450 GEM",
       ratio: 65,
     },
     team2: {
-      name: "TEAM_MYSTIC",
+      name: "TEAM_Helios",
       image: "https://picsum.photos/seed/t2/200/200",
       amount: "6,700 GEM",
       ratio: 35,
@@ -98,13 +99,13 @@ const MATCHES = [
   {
     sessionId: "88102",
     team1: {
-      name: "DYNASTY_X",
+      name: "BIBI",
       image: "https://picsum.photos/seed/t3/200/200",
       amount: "8,200 GEM",
       ratio: 42,
     },
     team2: {
-      name: "TITAN_PRO",
+      name: "CHIM SẺ ĐI NẮNG",
       image: "https://picsum.photos/seed/t4/200/200",
       amount: "11,300 GEM",
       ratio: 58,
@@ -197,7 +198,10 @@ export function MainContent({
       <div className="p-8 space-y-12">
         <div className="relative aspect-[21/9] w-full overflow-hidden border border-outline-variant/20 group cut-corner">
           <img
-            src={HERO_IMAGE_URL}
+            // src={HERO_IMAGE_URL}
+            src={
+              "https://genk.mediacdn.vn/2019/11/26/photo-1-15747646273681104143353.jpg"
+            }
             alt="Hero Battle"
             className="w-full h-full object-cover opacity-40 group-hover:opacity-60 transition-opacity duration-700"
             referrerPolicy="no-referrer"
@@ -206,7 +210,10 @@ export function MainContent({
 
           <div className="absolute top-6 left-6">
             <Badge className="bg-destructive hover:bg-destructive text-white border-none rounded-none px-3 py-1 flex items-center gap-2 font-bold tracking-[0.2em] text-[10px]">
-              <div className="w-1.5 h-1.5 bg-white animate-pulse" />
+              <span
+                className="mr-1.5 inline-flex h-2 w-2 shrink-0 rounded-full bg-red-500 shadow-[0_0_10px_2px_rgba(239,68,68,0.95)] animate-pulse"
+                aria-hidden
+              />
               TRỰC TIẾP
             </Badge>
           </div>
@@ -233,7 +240,7 @@ export function MainContent({
           <div className="flex flex-wrap gap-4">
             <Button
               type="button"
-              className="bg-primary hover:bg-primary-fixed-dim text-on-primary font-bold h-12 px-8 tracking-widest text-[10px] cut-corner-sm border-none"
+              className="hover:cursor-pointer! bg-primary hover:bg-primary-fixed-dim text-on-primary font-bold h-12 px-8 tracking-widest text-[10px] cut-corner-sm border-none"
               onClick={() => navigateTo("STREAMERS")}
             >
               BẮT ĐẦU ỦNG HỘ
@@ -241,7 +248,7 @@ export function MainContent({
             <Button
               type="button"
               variant="outline"
-              className="border-outline-variant hover:bg-surface-container-high text-foreground font-bold h-12 px-8 tracking-widest text-[10px] cut-corner-sm"
+              className="hover:cursor-pointer! border-outline-variant hover:bg-surface-container-high text-foreground font-bold h-12 px-8 tracking-widest text-[10px] cut-corner-sm"
               onClick={() => navigateTo("STREAMER_CHALLENGES")}
             >
               TẠO THỬ THÁCH
@@ -324,18 +331,18 @@ export function MainContent({
           id="home-game-zone"
           className="scroll-mt-28 pt-12 border-t border-outline-variant/10 space-y-8"
         >
-          {activeHomeGameZone === "LEAGUE_OF_LEGENDS" ? (
+          {activeHomeGameZone === HOME_DEMO_MATCH_ZONE_ID ? (
             <>
               <div className="flex items-center gap-4">
                 <h2 className="text-3xl font-bold italic tracking-tighter uppercase text-primary">
-                  LIÊN MINH HUYỀN THOẠI
+                  AGE OF EMPIRES
                 </h2>
                 <div className="h-px flex-1 bg-outline-variant/20" />
                 <Badge
                   variant="outline"
                   className="border-primary/30 text-primary rounded-none font-mono text-[9px] tracking-widest px-3"
                 >
-                  24 CHIẾN DỊCH BATTLE ĐANG DIỄN RA
+                  5 CHIẾN DỊCH BATTLE ĐANG DIỄN RA
                 </Badge>
               </div>
 
@@ -361,9 +368,9 @@ export function MainContent({
                 {activeZoneLabel}
               </h2>
               <p className="text-sm text-outline max-w-md mx-auto leading-relaxed">
-                Nội dung trận đấu cho tựa game này đang được chuẩn bị. Bạn có thể
-                chọn Liên Minh Huyền Thoại ở sidebar để xem khu vực demo, hoặc
-                vào mục Streamer để ủng hộ ngay.
+                Nội dung trận đấu cho tựa game này đang được chuẩn bị. Bạn có
+                thể chọn Age of Empires ở sidebar để xem khu vực demo, hoặc vào
+                mục Streamer để ủng hộ ngay.
               </p>
               <Button
                 type="button"

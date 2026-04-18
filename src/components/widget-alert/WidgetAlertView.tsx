@@ -8,7 +8,14 @@ import type {
   WidgetSettingsData,
 } from "@/src/redux/queries/public.api";
 import { parseWidgetDonationLevelQuery } from "@/src/utils/appNavigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import AlertOverlay, { type WidgetAlertSettings } from "./AlertOverlay";
 
 export type WidgetAlertViewProps = {
@@ -32,7 +39,9 @@ const WIDGET_LEVEL_CONFIG_KEYS = [
   "layoutSettings",
 ] as const;
 
-function resolveWidgetDonationLevelId(prop?: string | null): string | undefined {
+function resolveWidgetDonationLevelId(
+  prop?: string | null,
+): string | undefined {
   const p = typeof prop === "string" ? prop.trim() : "";
   if (p) return p;
   if (typeof window !== "undefined") {
@@ -81,19 +90,11 @@ function applyDonationLevelToWidgetSettings(
   for (const key of WIDGET_LEVEL_CONFIG_KEYS) {
     const patches: Record<string, unknown>[] = [];
     const fromCfg = cfg?.[key];
-    if (
-      fromCfg &&
-      typeof fromCfg === "object" &&
-      !Array.isArray(fromCfg)
-    ) {
+    if (fromCfg && typeof fromCfg === "object" && !Array.isArray(fromCfg)) {
       patches.push(fromCfg as Record<string, unknown>);
     }
     const fromRow = row[key];
-    if (
-      fromRow &&
-      typeof fromRow === "object" &&
-      !Array.isArray(fromRow)
-    ) {
+    if (fromRow && typeof fromRow === "object" && !Array.isArray(fromRow)) {
       patches.push(fromRow as Record<string, unknown>);
     }
     if (!patches.length) continue;
@@ -110,7 +111,9 @@ function applyDonationLevelToWidgetSettings(
   return out as WidgetSettingsData;
 }
 
-function widgetSettingsQueryString(donationLevelId: string | undefined): string {
+function widgetSettingsQueryString(
+  donationLevelId: string | undefined,
+): string {
   if (!donationLevelId?.trim()) return "";
   const sp = new URLSearchParams();
   const id = donationLevelId.trim();
@@ -174,9 +177,10 @@ export function WidgetAlertView({
 }: WidgetAlertViewProps) {
   const donationLevelId = resolveWidgetDonationLevelId(donationLevelIdProp);
 
-  const [widgetSettings, setWidgetSettings] = useState<WidgetSettingsData | null>(
-    () => loadCachedSettings(streamerId, donationLevelId),
-  );
+  const [widgetSettings, setWidgetSettings] =
+    useState<WidgetSettingsData | null>(() =>
+      loadCachedSettings(streamerId, donationLevelId),
+    );
   const [initData, setInitData] = useState<WidgetPublicInitData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -255,8 +259,7 @@ export function WidgetAlertView({
       donorName: "Preview Alert",
       amount,
       currency: "VND",
-      message:
-        "Đây là alert preview — kiểm tra ảnh & âm thanh của bạn!",
+      message: "Đây là alert preview — kiểm tra ảnh & âm thanh của bạn!",
       timestamp: new Date().toISOString(),
     };
     setPreviewAlert(preview);
@@ -355,13 +358,14 @@ export function WidgetAlertView({
       </div>
 
       {activeAlerts.slice(0, 1).map((alert) => (
-        <AlertOverlay
-          key={alert.id}
-          alert={alert}
-          settings={mergedSettings}
-          donationLevels={donationLevels}
-          onDismiss={handleDismiss}
-        />
+        <Fragment key={alert.id}>
+          <AlertOverlay
+            alert={alert}
+            settings={mergedSettings}
+            donationLevels={donationLevels}
+            onDismiss={handleDismiss}
+          />
+        </Fragment>
       ))}
     </div>
   );

@@ -271,7 +271,7 @@ export function DonateModal({ isOpen, onClose, subject }: DonateModalProps) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-3xl max-h-[min(90dvh,720px)] bg-surface-container-low border border-outline-variant/20 flex flex-col md:flex-row overflow-hidden overflow-y-auto cut-corner shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+            className="relative w-full max-w-4xl lg:max-w-5xl max-h-[min(92dvh,820px)] bg-surface-container-low border border-outline-variant/20 flex flex-col md:flex-row overflow-hidden overflow-y-auto cut-corner shadow-[0_0_50px_rgba(0,0,0,0.5)]"
           >
             <button
               type="button"
@@ -282,7 +282,7 @@ export function DonateModal({ isOpen, onClose, subject }: DonateModalProps) {
               <X className="h-5 w-5" strokeWidth={2.5} />
             </button>
 
-            <div className="w-full md:w-[40%] bg-surface-container-lowest p-6 pt-14 sm:p-8 sm:pt-14 md:p-8 md:pt-8 flex flex-col items-center justify-center space-y-6 md:space-y-8 border-r border-outline-variant/10 relative">
+            <div className="w-full min-w-0 md:w-[38%] lg:w-[36%] bg-surface-container-lowest p-6 pt-14 sm:p-8 sm:pt-14 md:p-8 md:pt-8 flex flex-col items-center justify-center space-y-6 md:space-y-8 border-r border-outline-variant/10 relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-full opacity-[0.02] pointer-events-none overflow-hidden">
                 <div
                   className="w-full h-full"
@@ -313,23 +313,23 @@ export function DonateModal({ isOpen, onClose, subject }: DonateModalProps) {
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center gap-4 relative">
-                  <div className="w-32 h-32 border-2 border-primary/50 p-1 bg-surface-container">
+                <div className="flex w-full max-w-full min-w-0 flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4 relative px-1">
+                  <div className="h-20 w-20 shrink-0 border-2 border-primary/50 p-0.5 bg-surface-container sm:h-24 sm:w-24 md:h-28 md:w-28 md:p-1">
                     <img
                       src={subject.team1?.image}
                       alt={subject.team1?.name}
-                      className="w-full h-full object-cover"
+                      className="h-full w-full object-cover"
                       referrerPolicy="no-referrer"
                     />
                   </div>
-                  <span className="text-2xl font-bold text-primary italic">
+                  <span className="shrink-0 text-lg font-bold italic text-primary sm:text-xl md:text-2xl">
                     VS
                   </span>
-                  <div className="w-32 h-32 border-2 border-outline-variant/30 p-1 bg-surface-container">
+                  <div className="h-20 w-20 shrink-0 border-2 border-outline-variant/30 p-0.5 bg-surface-container sm:h-24 sm:w-24 md:h-28 md:w-28 md:p-1">
                     <img
                       src={subject.team2?.image}
                       alt={subject.team2?.name}
-                      className="w-full h-full object-cover"
+                      className="h-full w-full object-cover"
                       referrerPolicy="no-referrer"
                     />
                   </div>
@@ -373,7 +373,7 @@ export function DonateModal({ isOpen, onClose, subject }: DonateModalProps) {
               </div>
             </div>
 
-            <div className="flex-1 p-6 sm:p-8 space-y-6 md:space-y-8 relative bg-surface-container-low min-h-0 flex flex-col md:min-h-[min(520px,60dvh)]">
+            <div className="min-w-0 flex-1 p-6 sm:p-8 space-y-6 md:space-y-8 relative bg-surface-container-low min-h-0 flex flex-col md:min-h-[min(520px,60dvh)]">
               <div className="space-y-1 pr-12">
                 <h3 className="text-2xl font-bold tracking-tight uppercase text-foreground">
                   GIAO DỊCH ỦNG HỘ

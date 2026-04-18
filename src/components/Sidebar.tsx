@@ -71,7 +71,7 @@ export function Sidebar({
           className="w-full bg-primary hover:bg-primary-fixed-dim text-on-primary font-bold h-12 tracking-widest text-[10px] cut-corner-sm border-none"
           onClick={() => navigateTo("PROFILE")}
         >
-          NÂNG CẤP LIÊN LẠC
+          TRANG CÁ NHÂN
         </Button>
       </div>
     </aside>

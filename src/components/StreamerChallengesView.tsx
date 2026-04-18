@@ -295,12 +295,12 @@ export function StreamerChallengesView() {
               QUẢN LÝ THỬ THÁCH
             </h2>
             <p className="text-[10px] font-mono text-outline tracking-widest uppercase">
-              GET /challenges/streamer/me · accept · reject · complete · fail
+              Theo dõi và quản lý các thử thách của bạn
             </p>
-            <p className="text-[9px] font-mono text-outline/80 tracking-wide">
+            {/* <p className="text-[9px] font-mono text-outline/80 tracking-wide">
               Tối đa {FETCH_LIMIT} bản ghi gần nhất — lọc/sắp xếp trên trình
               duyệt.
-            </p>
+            </p> */}
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
