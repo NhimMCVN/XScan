@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Drawer,
   DrawerClose,
@@ -20,156 +20,311 @@ import {
   Pagination,
   PaginationContent,
   PaginationItem,
-  PaginationLink,
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { Button } from "@/components/ui/button";
-import { X, Wallet, QrCode, Clock, MessageSquare, CheckCircle2, AlertCircle, Loader2, DollarSign, Sword, ShieldAlert } from "lucide-react";
+import {
+  X,
+  Wallet,
+  QrCode,
+  Clock,
+  MessageSquare,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  DollarSign,
+  Sword,
+} from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import dayjs from "dayjs";
+import { useGetDonorDonationsQuery } from "@/src/redux/queries/donate.api";
+import type { DonationRecord } from "@/src/redux/queries/donate.api";
+import { useGetMyDonorChallengesQuery } from "@/src/redux/queries/challenges.api";
+import type { Challenge } from "@/src/redux/queries/challenges.api";
+import { useAuthSelector } from "@/src/redux/slices/auth.slice";
 
-interface DonationRecord {
+const AVATAR_FALLBACK =
+  "https://placehold.co/100x100/1a1a1a/666666?text=X";
+
+const ITEMS_PER_PAGE = 8;
+
+type UiStatus = "pending" | "completed" | "failed";
+
+interface DonationRowView {
   id: string;
   time: string;
-  streamer: {
-    name: string;
-    avatar: string;
-  };
+  streamer: { name: string; avatar: string };
   amount: number;
-  method: 'wallet' | 'qrcode';
-  status: 'pending' | 'completed' | 'failed';
+  currency?: string;
+  method: "wallet" | "qrcode";
+  status: UiStatus;
   message: string;
 }
 
-interface ChallengeRecord {
+interface ChallengeRowView {
   id: string;
   time: string;
-  streamer: {
-    name: string;
-    avatar: string;
-  };
+  streamer: { name: string; avatar: string };
   amount: number;
-  status: 'pending' | 'completed' | 'failed';
+  status: UiStatus;
   content: string;
 }
 
-const FULL_HISTORY: DonationRecord[] = [
-  {
-    id: "TX-99482",
-    time: "2024-04-15 10:30",
-    streamer: { name: "VALKYRIE_09", avatar: "https://picsum.photos/seed/v1/100/100" },
-    amount: 250.00,
-    method: 'wallet',
-    status: 'completed',
-    message: "Great play in the last match! Keep it up."
-  },
-  {
-    id: "TX-99483",
-    time: "2024-04-15 10:15",
-    streamer: { name: "GHOST_TACTIC", avatar: "https://picsum.photos/seed/v2/100/100" },
-    amount: 50.00,
-    method: 'qrcode',
-    status: 'completed',
-    message: "Tactical support incoming."
-  },
-  {
-    id: "TX-99484",
-    time: "2024-04-15 09:50",
-    streamer: { name: "NEON_REAPER", avatar: "https://picsum.photos/seed/v3/100/100" },
-    amount: 1200.00,
-    method: 'wallet',
-    status: 'completed',
-    message: "Absolute beast mode! That triple kill was insane."
-  },
-  {
-    id: "TX-99485",
-    time: "2024-04-15 09:20",
-    streamer: { name: "CYBER_X", avatar: "https://picsum.photos/seed/v4/100/100" },
-    amount: 25.00,
-    method: 'wallet',
-    status: 'failed',
-    message: "Insufficient credits in reserve."
-  },
-  {
-    id: "TX-99486",
-    time: "2024-04-15 08:45",
-    streamer: { name: "ZERO_RECALL", avatar: "https://picsum.photos/seed/v5/100/100" },
-    amount: 100.00,
-    method: 'qrcode',
-    status: 'pending',
-    message: "Waiting for verification..."
-  },
-  ...Array.from({ length: 15 }).map((_, i) => ({
-    id: `TX-9948${i + 7}`,
-    time: `2024-04-14 ${10 + i}:00`,
-    streamer: { name: `OPERATOR_${i}`, avatar: `https://picsum.photos/seed/op${i}/100/100` },
-    amount: Math.floor(Math.random() * 500) + 10,
-    method: (i % 2 === 0 ? 'wallet' : 'qrcode') as 'wallet' | 'qrcode',
-    status: (i % 3 === 0 ? 'failed' : i % 3 === 1 ? 'completed' : 'pending') as 'pending' | 'completed' | 'failed',
-    message: "Automated tactical support record."
-  }))
-];
+function mapStatus(raw?: string): UiStatus {
+  const u = (raw || "").toLowerCase();
+  if (
+    u.includes("complete") ||
+    u === "paid" ||
+    u === "success" ||
+    u === "confirmed"
+  )
+    return "completed";
+  if (
+    u.includes("fail") ||
+    u.includes("reject") ||
+    u.includes("cancel") ||
+    u === "refunded"
+  )
+    return "failed";
+  return "pending";
+}
 
-const CHALLENGE_HISTORY: ChallengeRecord[] = [
-  {
-    id: "CH-1001",
-    time: "2024-04-15 11:00",
-    streamer: { name: "VALKYRIE_09", avatar: "https://picsum.photos/seed/v1/100/100" },
-    amount: 50000,
-    status: 'completed',
-    content: "Sử dụng rìu trong trận đấu tiếp theo"
-  },
-  {
-    id: "CH-1002",
-    time: "2024-04-15 10:45",
-    streamer: { name: "GHOST_TACTIC", avatar: "https://picsum.photos/seed/v2/100/100" },
-    amount: 100000,
-    status: 'pending',
-    content: "Chỉ sử dụng súng lục trong suốt hiệp đấu"
-  },
-  {
-    id: "CH-1003",
-    time: "2024-04-15 09:30",
-    streamer: { name: "NEON_REAPER", avatar: "https://picsum.photos/seed/v3/100/100" },
-    amount: 200000,
-    status: 'failed',
-    content: "Thắng trận mà không mất giáp"
+function donationMethod(
+  pm?: string,
+): "wallet" | "qrcode" {
+  const u = (pm || "").toLowerCase();
+  if (u === "wallet") return "wallet";
+  return "qrcode";
+}
+
+function formatMoney(amount: number, currency?: string): string {
+  const c = (currency || "VND").toUpperCase();
+  if (c === "USD") return `$${amount.toFixed(2)}`;
+  return `${amount.toLocaleString("vi-VN")} ${c}`;
+}
+
+function parseDonorDonationsPayload(res: {
+  success?: boolean;
+  data?: unknown;
+  meta?: {
+    page?: number;
+    limit?: number;
+    total?: number;
+    totalPages?: number;
+  };
+} | undefined): { list: DonationRecord[]; meta?: typeof res.meta } {
+  if (!res) return { list: [] };
+  const d = res.data;
+  if (Array.isArray(d)) return { list: d as DonationRecord[], meta: res.meta };
+  if (d && typeof d === "object" && Array.isArray((d as { items?: unknown }).items))
+    return {
+      list: (d as { items: DonationRecord[] }).items,
+      meta: res.meta ?? (d as { meta?: typeof res.meta }).meta,
+    };
+  return { list: [], meta: res.meta };
+}
+
+function donationToRow(d: DonationRecord): DonationRowView {
+  const id = String(d._id ?? d.id ?? "");
+  const st = d.streamer as
+    | {
+        displayName?: string;
+        username?: string;
+        profilePicture?: string;
+      }
+    | undefined;
+  const name = String(
+    st?.displayName || st?.username || "STREAMER",
+  ).toUpperCase();
+  const avatar =
+    typeof st?.profilePicture === "string" && st.profilePicture
+      ? st.profilePicture
+      : AVATAR_FALLBACK;
+  const t = d.createdAt
+    ? dayjs(d.createdAt).format("YYYY-MM-DD HH:mm")
+    : "—";
+  return {
+    id,
+    time: t,
+    streamer: { name, avatar },
+    amount: typeof d.amount === "number" ? d.amount : Number(d.amount) || 0,
+    currency: typeof d.currency === "string" ? d.currency : undefined,
+    method: donationMethod(
+      typeof d.paymentMethod === "string" ? d.paymentMethod : undefined,
+    ),
+    status: mapStatus(typeof d.status === "string" ? d.status : undefined),
+    message: typeof d.message === "string" && d.message ? d.message : "—",
+  };
+}
+
+function parseDonorChallengesPayload(res: {
+  success?: boolean;
+  data?: unknown;
+  message?: string;
+} | undefined): {
+  list: Challenge[];
+  meta?: { page?: number; limit?: number; total?: number; totalPages?: number };
+} {
+  if (!res?.data) return { list: [] };
+  const inner = res.data;
+  if (Array.isArray(inner)) return { list: inner as Challenge[] };
+  if (typeof inner === "object") {
+    const o = inner as Record<string, unknown>;
+    const arr = o.data ?? o.items;
+    if (Array.isArray(arr)) {
+      return {
+        list: arr as Challenge[],
+        meta:
+          (o.meta as {
+            page?: number;
+            limit?: number;
+            total?: number;
+            totalPages?: number;
+          }) ?? undefined,
+      };
+    }
   }
-];
+  return { list: [] };
+}
+
+function challengeToRow(c: Challenge): ChallengeRowView {
+  const id = String(c._id ?? c.id ?? "");
+  const st = c.streamer as
+    | {
+        displayName?: string;
+        username?: string;
+        profilePicture?: string;
+      }
+    | undefined;
+  const name = String(
+    st?.displayName || st?.username || "STREAMER",
+  ).toUpperCase();
+  const avatar =
+    typeof st?.profilePicture === "string" && st.profilePicture
+      ? st.profilePicture
+      : AVATAR_FALLBACK;
+  const t = c.createdAt
+    ? dayjs(c.createdAt).format("YYYY-MM-DD HH:mm")
+    : "—";
+  return {
+    id,
+    time: t,
+    streamer: { name, avatar },
+    amount: typeof c.amount === "number" ? c.amount : Number(c.amount) || 0,
+    status: mapStatus(typeof c.status === "string" ? c.status : undefined),
+    content:
+      typeof c.content === "string" && c.content ? c.content : "—",
+  };
+}
 
 interface DonationHistoryDrawerProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-export function DonationHistoryDrawer({ isOpen, onClose }: DonationHistoryDrawerProps) {
-  const [activeTab, setActiveTab] = useState<'donate' | 'challenge'>('donate');
+export function DonationHistoryDrawer({
+  isOpen,
+  onClose,
+}: DonationHistoryDrawerProps) {
+  const { isAuthenticated } = useAuthSelector();
+  const [activeTab, setActiveTab] = useState<"donate" | "challenge">("donate");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 8;
-  
-  const historyData = activeTab === 'donate' ? FULL_HISTORY : CHALLENGE_HISTORY;
-  const totalPages = Math.ceil(historyData.length / itemsPerPage);
 
-  const currentData = historyData.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
+  useEffect(() => {
+    if (isOpen) setCurrentPage(1);
+  }, [isOpen]);
+
+  const donorQuery = useGetDonorDonationsQuery(
+    { page: currentPage, limit: ITEMS_PER_PAGE },
+    {
+      skip: !isOpen || !isAuthenticated || activeTab !== "donate",
+    },
   );
+
+  const donorChallengesQuery = useGetMyDonorChallengesQuery(
+    { page: currentPage, limit: ITEMS_PER_PAGE },
+    {
+      skip: !isOpen || !isAuthenticated || activeTab !== "challenge",
+    },
+  );
+
+  const donationParsed = useMemo(
+    () => parseDonorDonationsPayload(donorQuery.data),
+    [donorQuery.data],
+  );
+
+  const donationRows = useMemo(
+    () => donationParsed.list.map(donationToRow),
+    [donationParsed.list],
+  );
+
+  const donationMeta = donationParsed.meta;
+  const donationTotal = donationMeta?.total ?? donationParsed.list.length;
+  const donationTotalPages = Math.max(
+    1,
+    donationMeta?.totalPages ??
+      (Math.ceil(donationTotal / ITEMS_PER_PAGE) || 1),
+  );
+
+  const challengeParsed = useMemo(
+    () => parseDonorChallengesPayload(donorChallengesQuery.data),
+    [donorChallengesQuery.data],
+  );
+
+  const challengeRows = useMemo(
+    () => challengeParsed.list.map(challengeToRow),
+    [challengeParsed.list],
+  );
+
+  const challengeMeta = challengeParsed.meta;
+  const challengeTotal =
+    challengeMeta?.total ?? challengeParsed.list.length;
+  const challengeTotalPages = Math.max(
+    1,
+    challengeMeta?.totalPages ??
+      (Math.ceil(challengeTotal / ITEMS_PER_PAGE) || 1),
+  );
+
+  const currentData: DonationRowView[] | ChallengeRowView[] =
+    activeTab === "donate" ? donationRows : challengeRows;
+  const totalPages =
+    activeTab === "donate" ? donationTotalPages : challengeTotalPages;
+  const totalRecords =
+    activeTab === "donate" ? donationTotal : challengeTotal;
+
+  const isLoading =
+    activeTab === "donate" ? donorQuery.isLoading : donorChallengesQuery.isLoading;
+  const isFetching =
+    activeTab === "donate" ? donorQuery.isFetching : donorChallengesQuery.isFetching;
+  const loadPending = isLoading || isFetching;
+
+  const loadError =
+    activeTab === "donate" ? donorQuery.isError : donorChallengesQuery.isError;
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'completed': return <CheckCircle2 className="w-4 h-4 text-green-500" />;
-      case 'failed': return <AlertCircle className="w-4 h-4 text-destructive" />;
-      case 'pending': return <Loader2 className="w-4 h-4 text-primary animate-spin" />;
-      default: return null;
+      case "completed":
+        return <CheckCircle2 className="w-4 h-4 text-green-500" />;
+      case "failed":
+        return <AlertCircle className="w-4 h-4 text-destructive" />;
+      case "pending":
+        return <Loader2 className="w-4 h-4 text-primary animate-spin" />;
+      default:
+        return null;
     }
   };
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'completed': return 'Hoàn tất';
-      case 'failed': return 'Thất bại';
-      case 'pending': return 'Đang xử lý';
-      default: return status;
+      case "completed":
+        return "Hoàn tất";
+      case "failed":
+        return "Thất bại";
+      case "pending":
+        return "Đang xử lý";
+      default:
+        return status;
     }
   };
 
@@ -184,30 +339,42 @@ export function DonationHistoryDrawer({ isOpen, onClose }: DonationHistoryDrawer
                   KHO LƯU TRỮ GIAO DỊCH
                 </DrawerTitle>
                 <DrawerDescription className="text-[10px] font-mono text-outline tracking-widest uppercase">
-                  GIAO THỨC: DATA_RETRIEVAL_V1.0 // TỔNG SỐ BẢN GHI: {historyData.length}
+                  GIAO THỨC: DATA_RETRIEVAL_V1.0 // TỔNG SỐ BẢN GHI:{" "}
+                  {isAuthenticated ? totalRecords : "—"}
                 </DrawerDescription>
               </div>
               <DrawerClose asChild>
-                <Button variant="ghost" size="icon" className="text-outline hover:text-primary">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-outline hover:text-primary"
+                >
                   <X className="w-6 h-6" />
                 </Button>
               </DrawerClose>
             </div>
 
-            {/* Tabs */}
             <div className="flex gap-4 mt-6">
-              <Button 
-                onClick={() => { setActiveTab('donate'); setCurrentPage(1); }}
+              <Button
+                type="button"
+                onClick={() => {
+                  setActiveTab("donate");
+                  setCurrentPage(1);
+                }}
                 variant="ghost"
-                className={`h-10 px-6 rounded-none font-bold text-[10px] tracking-widest uppercase border-b-2 transition-all ${activeTab === 'donate' ? 'border-primary text-primary bg-primary/5' : 'border-transparent text-outline hover:text-primary'}`}
+                className={`h-10 px-6 rounded-none font-bold text-[10px] tracking-widest uppercase border-b-2 transition-all ${activeTab === "donate" ? "border-primary text-primary bg-primary/5" : "border-transparent text-outline hover:text-primary"}`}
               >
                 <DollarSign className="w-4 h-4 mr-2" />
                 LỊCH SỬ ỦNG HỘ
               </Button>
-              <Button 
-                onClick={() => { setActiveTab('challenge'); setCurrentPage(1); }}
+              <Button
+                type="button"
+                onClick={() => {
+                  setActiveTab("challenge");
+                  setCurrentPage(1);
+                }}
                 variant="ghost"
-                className={`h-10 px-6 rounded-none font-bold text-[10px] tracking-widest uppercase border-b-2 transition-all ${activeTab === 'challenge' ? 'border-primary text-primary bg-primary/5' : 'border-transparent text-outline hover:text-primary'}`}
+                className={`h-10 px-6 rounded-none font-bold text-[10px] tracking-widest uppercase border-b-2 transition-all ${activeTab === "challenge" ? "border-primary text-primary bg-primary/5" : "border-transparent text-outline hover:text-primary"}`}
               >
                 <Sword className="w-4 h-4 mr-2" />
                 LỊCH SỬ THỬ THÁCH
@@ -216,25 +383,68 @@ export function DonationHistoryDrawer({ isOpen, onClose }: DonationHistoryDrawer
           </DrawerHeader>
 
           <div className="flex-1 overflow-auto p-6">
+            {!isAuthenticated && (
+              <p className="text-[11px] font-mono text-outline tracking-wide mb-4">
+                Đăng nhập để xem lịch sử ủng hộ và thử thách của bạn từ máy chủ.
+              </p>
+            )}
+            {isAuthenticated && loadError && (
+              <p className="text-[11px] font-mono text-red-400 mb-4">
+                Không tải được dữ liệu. Vui lòng thử lại.
+              </p>
+            )}
+            {isAuthenticated && loadPending && (
+              <p className="text-[10px] font-mono text-primary tracking-widest uppercase mb-4">
+                Đang tải dữ liệu...
+              </p>
+            )}
+
             <div className="relative border border-outline-variant/10 bg-surface-container-lowest/30 cut-corner-sm">
               <Table>
                 <TableHeader className="bg-surface-container-highest/30">
                   <TableRow className="hover:bg-transparent border-outline-variant/10">
-                    <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">THỜI GIAN</TableHead>
-                    <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">STREAMER</TableHead>
-                    <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">SỐ TIỀN</TableHead>
-                    {activeTab === 'donate' && (
-                      <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">PHƯƠNG THỨC</TableHead>
-                    )}
-                    <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">TRẠNG THÁI</TableHead>
                     <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">
-                      {activeTab === 'donate' ? 'TIN NHẮN' : 'NỘI DUNG THỬ THÁCH'}
+                      THỜI GIAN
+                    </TableHead>
+                    <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">
+                      STREAMER
+                    </TableHead>
+                    <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">
+                      SỐ TIỀN
+                    </TableHead>
+                    {activeTab === "donate" && (
+                      <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">
+                        PHƯƠNG THỨC
+                      </TableHead>
+                    )}
+                    <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">
+                      TRẠNG THÁI
+                    </TableHead>
+                    <TableHead className="text-[10px] font-bold text-outline tracking-widest uppercase h-12">
+                      {activeTab === "donate"
+                        ? "TIN NHẮN"
+                        : "NỘI DUNG THỬ THÁCH"}
                     </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  {isAuthenticated &&
+                    !loadPending &&
+                    currentData.length === 0 && (
+                      <TableRow>
+                        <TableCell
+                          colSpan={activeTab === "donate" ? 6 : 5}
+                          className="text-center text-[10px] font-mono text-outline py-10 uppercase"
+                        >
+                          Chưa có bản ghi.
+                        </TableCell>
+                      </TableRow>
+                    )}
                   {currentData.map((record) => (
-                    <TableRow key={record.id} className="hover:bg-surface-container-high/50 border-outline-variant/5 transition-colors">
+                    <TableRow
+                      key={record.id}
+                      className="hover:bg-surface-container-high/50 border-outline-variant/5 transition-colors"
+                    >
                       <TableCell className="font-mono text-[10px] text-outline">
                         <div className="flex items-center gap-2">
                           <Clock className="w-3 h-3" />
@@ -244,8 +454,13 @@ export function DonationHistoryDrawer({ isOpen, onClose }: DonationHistoryDrawer
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar className="w-8 h-8 border border-outline-variant/20">
-                            <AvatarImage src={record.streamer.avatar} referrerPolicy="no-referrer" />
-                            <AvatarFallback>{record.streamer.name[0]}</AvatarFallback>
+                            <AvatarImage
+                              src={record.streamer.avatar}
+                              referrerPolicy="no-referrer"
+                            />
+                            <AvatarFallback>
+                              {record.streamer.name[0] ?? "?"}
+                            </AvatarFallback>
                           </Avatar>
                           <span className="text-[11px] font-bold text-foreground uppercase tracking-wider">
                             {record.streamer.name}
@@ -253,36 +468,55 @@ export function DonationHistoryDrawer({ isOpen, onClose }: DonationHistoryDrawer
                         </div>
                       </TableCell>
                       <TableCell className="font-display font-bold text-primary text-sm">
-                        {activeTab === 'donate' 
-                          ? `$${(record as DonationRecord).amount.toFixed(2)}` 
-                          : `${(record as ChallengeRecord).amount.toLocaleString()} VND`
-                        }
+                        {activeTab === "donate"
+                          ? formatMoney(
+                              (record as DonationRowView).amount,
+                              (record as DonationRowView).currency,
+                            )
+                          : `${(record as ChallengeRowView).amount.toLocaleString("vi-VN")} VND`}
                       </TableCell>
-                      {activeTab === 'donate' && (
+                      {activeTab === "donate" && (
                         <TableCell>
                           <div className="flex items-center gap-2 text-[10px] font-bold text-outline uppercase tracking-widest">
-                            {(record as DonationRecord).method === 'wallet' ? <Wallet className="w-3 h-3" /> : <QrCode className="w-3 h-3" />}
-                            {(record as DonationRecord).method === 'wallet' ? 'Ví' : 'Mã QR'}
+                            {(record as DonationRowView).method ===
+                            "wallet" ? (
+                              <Wallet className="w-3 h-3" />
+                            ) : (
+                              <QrCode className="w-3 h-3" />
+                            )}
+                            {(record as DonationRowView).method === "wallet"
+                              ? "Ví"
+                              : "QR / Ngân hàng"}
                           </div>
                         </TableCell>
                       )}
                       <TableCell>
                         <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest">
                           {getStatusIcon(record.status)}
-                          <span className={
-                            record.status === 'completed' ? 'text-green-500' : 
-                            record.status === 'failed' ? 'text-destructive' : 
-                            'text-primary'
-                          }>
+                          <span
+                            className={
+                              record.status === "completed"
+                                ? "text-green-500"
+                                : record.status === "failed"
+                                  ? "text-destructive"
+                                  : "text-primary"
+                            }
+                          >
                             {getStatusText(record.status)}
                           </span>
                         </div>
                       </TableCell>
                       <TableCell className="max-w-[200px]">
                         <div className="flex items-start gap-2 text-[10px] text-outline leading-relaxed italic">
-                          {activeTab === 'donate' ? <MessageSquare className="w-3 h-3 mt-0.5 shrink-0" /> : <Sword className="w-3 h-3 mt-0.5 shrink-0" />}
+                          {activeTab === "donate" ? (
+                            <MessageSquare className="w-3 h-3 mt-0.5 shrink-0" />
+                          ) : (
+                            <Sword className="w-3 h-3 mt-0.5 shrink-0" />
+                          )}
                           <span className="truncate">
-                            {activeTab === 'donate' ? (record as DonationRecord).message : (record as ChallengeRecord).content}
+                            {activeTab === "donate"
+                              ? (record as DonationRowView).message
+                              : (record as ChallengeRowView).content}
                           </span>
                         </div>
                       </TableCell>
@@ -294,36 +528,36 @@ export function DonationHistoryDrawer({ isOpen, onClose }: DonationHistoryDrawer
           </div>
 
           <DrawerFooter className="border-t border-outline-variant/10 py-6">
-            <Pagination>
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious 
-                    href="#" 
-                    onClick={(e) => { e.preventDefault(); if (currentPage > 1) setCurrentPage(p => p - 1); }}
-                    className={`text-[10px] font-bold tracking-widest uppercase rounded-none border-outline-variant/20 ${currentPage === 1 ? 'opacity-50 pointer-events-none' : 'hover:bg-primary/10 hover:text-primary'}`}
-                  />
-                </PaginationItem>
-                {Array.from({ length: totalPages }).map((_, i) => (
-                  <PaginationItem key={i}>
-                    <PaginationLink 
-                      href="#" 
-                      onClick={(e) => { e.preventDefault(); setCurrentPage(i + 1); }}
-                      isActive={currentPage === i + 1}
-                      className={`text-[10px] font-bold rounded-none border-outline-variant/20 ${currentPage === i + 1 ? 'bg-primary text-black border-primary' : 'hover:bg-primary/10 hover:text-primary'}`}
-                    >
-                      {i + 1}
-                    </PaginationLink>
+            {!isAuthenticated ? null : (
+              <Pagination>
+                <PaginationContent className="flex flex-wrap items-center justify-center gap-4">
+                  <PaginationItem>
+                    <PaginationPrevious
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (currentPage > 1) setCurrentPage((p) => p - 1);
+                      }}
+                      className={`text-[10px] font-bold tracking-widest uppercase rounded-none border-outline-variant/20 ${currentPage === 1 ? "opacity-50 pointer-events-none" : "hover:bg-primary/10 hover:text-primary"}`}
+                    />
                   </PaginationItem>
-                ))}
-                <PaginationItem>
-                  <PaginationNext 
-                    href="#" 
-                    onClick={(e) => { e.preventDefault(); if (currentPage < totalPages) setCurrentPage(p => p + 1); }}
-                    className={`text-[10px] font-bold tracking-widest uppercase rounded-none border-outline-variant/20 ${currentPage === totalPages ? 'opacity-50 pointer-events-none' : 'hover:bg-primary/10 hover:text-primary'}`}
-                  />
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
+                  <span className="text-[10px] font-mono text-outline tracking-wide px-2">
+                    TRANG {currentPage} / {totalPages} ({totalRecords} bản ghi)
+                  </span>
+                  <PaginationItem>
+                    <PaginationNext
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (currentPage < totalPages)
+                          setCurrentPage((p) => p + 1);
+                      }}
+                      className={`text-[10px] font-bold tracking-widest uppercase rounded-none border-outline-variant/20 ${currentPage >= totalPages ? "opacity-50 pointer-events-none" : "hover:bg-primary/10 hover:text-primary"}`}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            )}
           </DrawerFooter>
         </div>
       </DrawerContent>

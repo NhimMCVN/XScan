@@ -1,14 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { 
-  X, 
-  Zap, 
-  ShieldAlert, 
-  Sword,
-  Wallet,
-  QrCode,
-  ShieldCheck
-} from "lucide-react";
+import { X, Zap, ShieldAlert, Sword } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -18,43 +10,116 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  useCreateChallengeMutation,
+  CHALLENGE_CONTENT_MAX_LENGTH,
+} from "@/src/redux/queries/challenges.api";
+import { useAuthSelector } from "@/src/redux/slices/auth.slice";
+
+export interface ChallengeModalStreamer {
+  id: string;
+  name: string;
+}
 
 interface ChallengeModalProps {
   isOpen: boolean;
   onClose: () => void;
-  streamer: any;
+  streamer: ChallengeModalStreamer | null;
 }
 
-export function ChallengeModal({ isOpen, onClose, streamer }: ChallengeModalProps) {
-  const [activeTab, setActiveTab] = useState<'wallet' | 'qrcode'>('wallet');
-  const [isQrGenerated, setIsQrGenerated] = useState(false);
+function getMutationError(e: unknown): string {
+  if (!e || typeof e !== "object") return "Có lỗi xảy ra.";
+  const x = e as Record<string, unknown>;
+  const data = x.data;
+  if (data && typeof data === "object") {
+    const d = data as Record<string, unknown>;
+    if (typeof d.message === "string" && d.message) return d.message;
+    const err = d.error;
+    if (err && typeof err === "object") {
+      const m = (err as Record<string, unknown>).message;
+      if (typeof m === "string" && m) return m;
+    }
+  }
+  return "Có lỗi xảy ra.";
+}
+
+export function ChallengeModal({
+  isOpen,
+  onClose,
+  streamer,
+}: ChallengeModalProps) {
+  const { isAuthenticated } = useAuthSelector();
   const [amount, setAmount] = useState("50000");
   const [challenge, setChallenge] = useState("");
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const [createChallenge, { isLoading }] = useCreateChallengeMutation();
 
   const handleClose = () => {
-    setIsQrGenerated(false);
-    setActiveTab('wallet');
+    setError(null);
+    setSuccess(null);
+    setChallenge("");
+    setAmount("50000");
     onClose();
   };
 
-  const handleSubmit = (e: any) => {
+  useEffect(() => {
+    if (!isOpen) return;
+    setError(null);
+    setSuccess(null);
+    setChallenge("");
+    setAmount("50000");
+  }, [isOpen]);
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (activeTab === 'qrcode' && !isQrGenerated) {
-      setIsQrGenerated(true);
+    setError(null);
+    setSuccess(null);
+    if (!streamer?.id) {
+      setError("Thiếu streamer.");
       return;
     }
-    setIsProcessing(true);
-    setTimeout(() => {
-      setIsProcessing(false);
-      handleClose();
-    }, 1500);
+    if (!isAuthenticated) {
+      setError("Vui lòng đăng nhập để gửi thử thách.");
+      return;
+    }
+    const amt = parseFloat(String(amount).replace(/,/g, ""));
+    if (!Number.isFinite(amt) || amt < 1) {
+      setError("Số tiền không hợp lệ.");
+      return;
+    }
+    const content = challenge.trim();
+    if (content.length < 1) {
+      setError("Nhập nội dung thử thách.");
+      return;
+    }
+    if (content.length > CHALLENGE_CONTENT_MAX_LENGTH) {
+      setError(`Nội dung tối đa ${CHALLENGE_CONTENT_MAX_LENGTH} ký tự.`);
+      return;
+    }
+    try {
+      await createChallenge({
+        amount: amt,
+        content,
+        streamerId: streamer.id,
+      }).unwrap();
+      setSuccess("Đã gửi thử thách — tiền đã trừ ví.");
+      setTimeout(() => handleClose(), 1400);
+    } catch (err) {
+      setError(getMutationError(err));
+    }
   };
 
   if (!streamer) return null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) handleClose();
+      }}
+    >
       <DialogContent className="max-w-md bg-surface-container-low border border-primary/20 p-0 overflow-hidden cut-corner shadow-[0_0_50px_rgba(0,0,0,0.5)]">
         <DialogHeader className="p-8 pb-0">
           <div className="flex items-center justify-between">
@@ -66,139 +131,108 @@ export function ChallengeModal({ isOpen, onClose, streamer }: ChallengeModalProp
               <p className="text-[10px] font-mono text-outline tracking-widest uppercase">
                 MỤC TIÊU: {streamer.name}
               </p>
+              <p className="text-[9px] font-mono text-outline/90 tracking-wide pt-1">
+                POST /challenges — trừ ví ngay khi gửi
+              </p>
             </div>
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={handleClose}
-              className="text-outline hover:text-primary transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </Button>
           </div>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="p-8 space-y-8">
-          {/* Tabs */}
-          <div className="relative p-1 bg-surface-container-highest/30 flex gap-1 border border-outline-variant/10">
-            <Button 
-              type="button"
-              onClick={() => { setActiveTab('wallet'); setIsQrGenerated(false); }}
-              className={`flex-1 font-bold text-[10px] tracking-[0.2em] h-10 rounded-none transition-all ${activeTab === 'wallet' ? 'bg-surface-container-highest border border-primary/50 text-primary' : 'bg-transparent text-outline hover:text-primary'}`}
-            >
-              <Wallet className="w-4 h-4 mr-2" />
-              VÍ TIỀN
-            </Button>
-            <Button 
-              type="button"
-              onClick={() => setActiveTab('qrcode')}
-              className={`flex-1 font-bold text-[10px] tracking-[0.2em] h-10 rounded-none transition-all ${activeTab === 'qrcode' ? 'bg-surface-container-highest border border-primary/50 text-primary' : 'bg-transparent text-outline hover:text-primary'}`}
-            >
-              <QrCode className="w-4 h-4 mr-2" />
-              MÃ QR
-            </Button>
-          </div>
+          {error && (
+            <p className="text-[11px] font-mono text-red-400 border border-red-400/30 bg-red-400/5 px-3 py-2">
+              {error}
+            </p>
+          )}
+          {success && (
+            <p className="text-[11px] font-mono text-green-500 border border-green-500/30 bg-green-500/5 px-3 py-2">
+              {success}
+            </p>
+          )}
 
           <AnimatePresence mode="wait">
-            {isQrGenerated ? (
-              <motion.div 
-                key="qr-view"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                className="flex flex-col items-center justify-center space-y-6 py-4"
-              >
-                <div className="relative p-4 bg-white border-4 border-primary/30">
-                  <img 
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=CHALLENGE_${amount}_TO_${streamer.name}`}
-                    alt="QR Code"
-                    className="w-40 h-40"
+            <motion.div
+              key="form"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="space-y-8"
+            >
+              <div className="space-y-4">
+                <label className="text-[10px] font-bold text-outline uppercase tracking-widest flex items-center gap-2">
+                  <div className="w-1 h-1 bg-primary" />
+                  PHẦN THƯỞNG THỬ THÁCH (VND)
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    "20000",
+                    "50000",
+                    "100000",
+                    "200000",
+                    "500000",
+                    "1000000",
+                  ].map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setAmount(val)}
+                      className={`py-2 text-[10px] font-bold border transition-all ${
+                        amount === val
+                          ? "bg-primary border-primary text-black"
+                          : "bg-surface-container-highest/20 border-outline-variant/10 text-outline hover:border-primary/50"
+                      }`}
+                    >
+                      {parseInt(val, 10).toLocaleString("vi-VN")}
+                    </button>
+                  ))}
+                </div>
+                <div className="relative group">
+                  <Input
+                    type="number"
+                    min={1}
+                    step={1000}
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    className="h-12 bg-surface-container-highest/30 border-outline-variant/10 rounded-none font-mono text-sm tracking-widest pl-10"
                   />
+                  <Zap className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary" />
                 </div>
-                <div className="text-center space-y-2">
-                  <p className="text-primary font-bold tracking-widest uppercase">QUÉT ĐỂ GỬI THỬ THÁCH</p>
-                  <p className="text-[10px] text-outline tracking-widest uppercase">SỐ TIỀN: {parseInt(amount).toLocaleString()} VND</p>
-                </div>
-                <Button 
-                  variant="ghost" 
-                  onClick={() => setIsQrGenerated(false)}
-                  className="text-[10px] font-bold text-outline hover:text-primary tracking-[0.2em] uppercase h-8 rounded-none border border-outline-variant/20 px-4"
-                >
-                  THAY ĐỔI THÔNG TIN
-                </Button>
-              </motion.div>
-            ) : (
-              <motion.div 
-                key="form-view"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="space-y-8"
+              </div>
+
+              <div className="space-y-4">
+                <label className="text-[10px] font-bold text-outline uppercase tracking-widest flex items-center gap-2">
+                  <div className="w-1 h-1 bg-primary" />
+                  NỘI DUNG THỬ THÁCH
+                </label>
+                <Textarea
+                  placeholder="Sử dụng rìu trong trận đấu tiếp theo"
+                  value={challenge}
+                  onChange={(e) => setChallenge(e.target.value)}
+                  maxLength={CHALLENGE_CONTENT_MAX_LENGTH}
+                  className="min-h-[100px] bg-surface-container-highest/30 border-outline-variant/10 rounded-none focus:ring-primary/50 font-medium text-sm"
+                />
+                <p className="text-[9px] font-mono text-outline text-right">
+                  {challenge.length}/{CHALLENGE_CONTENT_MAX_LENGTH}
+                </p>
+              </div>
+
+              <div className="bg-primary/5 border border-primary/20 p-4 flex gap-3">
+                <ShieldAlert className="w-5 h-5 text-primary shrink-0" />
+                <p className="text-[10px] text-primary/80 leading-relaxed font-medium uppercase tracking-wider">
+                  Streamer sẽ xem xét và chấp nhận thử thách của bạn. Nếu thử
+                  thách không được thực hiện hoặc bị từ chối, bạn sẽ được hoàn
+                  tiền vào ví.
+                </p>
+              </div>
+
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className="w-full h-14 bg-primary hover:bg-primary/90 text-black font-bold tracking-[0.2em] rounded-none shadow-[0_0_30px_rgba(255,184,0,0.2)]"
               >
-                {/* Amount Selection */}
-                <div className="space-y-4">
-                  <label className="text-[10px] font-bold text-outline uppercase tracking-widest flex items-center gap-2">
-                    <div className="w-1 h-1 bg-primary" />
-                    PHẦN THƯỞNG THỬ THÁCH (VND)
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {["20000", "50000", "100000", "200000", "500000", "1000000"].map((val) => (
-                      <button
-                        key={val}
-                        type="button"
-                        onClick={() => setAmount(val)}
-                        className={`py-2 text-[10px] font-bold border transition-all ${
-                          amount === val 
-                            ? 'bg-primary border-primary text-black' 
-                            : 'bg-surface-container-highest/20 border-outline-variant/10 text-outline hover:border-primary/50'
-                        }`}
-                      >
-                        {parseInt(val).toLocaleString()}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="relative group">
-                    <Input 
-                      type="number"
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      className="h-12 bg-surface-container-highest/30 border-outline-variant/10 rounded-none font-mono text-sm tracking-widest pl-10"
-                    />
-                    <Zap className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-primary" />
-                  </div>
-                </div>
-
-                {/* Challenge Content */}
-                <div className="space-y-4">
-                  <label className="text-[10px] font-bold text-outline uppercase tracking-widest flex items-center gap-2">
-                    <div className="w-1 h-1 bg-primary" />
-                    NỘI DUNG THỬ THÁCH
-                  </label>
-                  <Textarea 
-                    placeholder="Sử dụng rìu trong trận đấu tiếp theo"
-                    value={challenge}
-                    onChange={(e) => setChallenge(e.target.value)}
-                    className="min-h-[100px] bg-surface-container-highest/30 border-outline-variant/10 rounded-none focus:ring-primary/50 font-medium text-sm"
-                  />
-                </div>
-
-                {/* Alert Info */}
-                <div className="bg-primary/5 border border-primary/20 p-4 flex gap-3">
-                  <ShieldAlert className="w-5 h-5 text-primary shrink-0" />
-                  <p className="text-[10px] text-primary/80 leading-relaxed font-medium uppercase tracking-wider">
-                    Streamer sẽ xem xét và chấp nhận thử thách của bạn. Nếu thử thách không được thực hiện hoặc bị từ chối, bạn sẽ được hoàn tiền 100% vào ví.
-                  </p>
-                </div>
-
-                <Button 
-                  type="submit"
-                  disabled={isProcessing}
-                  className="w-full h-14 bg-primary hover:bg-primary/90 text-black font-bold tracking-[0.2em] rounded-none shadow-[0_0_30px_rgba(255,184,0,0.2)]"
-                >
-                  {isProcessing ? "ĐANG TRIỂN KHAI..." : activeTab === 'wallet' ? "GỬI THỬ THÁCH" : "TẠO MÃ QR"}
-                </Button>
-              </motion.div>
-            )}
+                {isLoading ? "ĐANG GỬI..." : "GỬI THỬ THÁCH"}
+              </Button>
+            </motion.div>
           </AnimatePresence>
         </form>
       </DialogContent>

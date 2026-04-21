@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
-import { Sword, CheckCircle2, XCircle, Clock } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Sword, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -29,17 +28,11 @@ import {
 } from "@/components/ui/pagination";
 import dayjs from "dayjs";
 import type { Challenge } from "@/src/redux/queries/challenges.api";
-import {
-  useGetMyStreamerChallengesQuery,
-  useAcceptChallengeMutation,
-  useRejectChallengeMutation,
-  useCompleteChallengeMutation,
-  useFailChallengeMutation,
-} from "@/src/redux/queries/challenges.api";
+import { useGetMyDonorChallengesQuery } from "@/src/redux/queries/challenges.api";
 import { useAuthSelector } from "@/src/redux/slices/auth.slice";
 import { isStreamerRole } from "@/src/utils/userRole";
 
-const AVATAR_FALLBACK = "https://placehold.co/100x100/1a1a1a/666666?text=D";
+const AVATAR_FALLBACK = "https://placehold.co/100x100/1a1a1a/666666?text=S";
 
 const FETCH_LIMIT = 200;
 
@@ -51,16 +44,16 @@ type UiChallengeStatus =
   | "failed"
   | "unknown";
 
-interface StreamerChallengeRow {
+interface DonorChallengeRow {
   id: string;
-  user: { name: string; avatar: string };
+  streamer: { name: string; avatar: string };
   amount: number;
   content: string;
   status: UiChallengeStatus;
   timestamp: string;
 }
 
-function parseStreamerChallengesPayload(
+function parseChallengesPayload(
   res:
     | {
         success?: boolean;
@@ -79,7 +72,7 @@ function parseStreamerChallengesPayload(
   return [];
 }
 
-function normalizeStreamerStatus(raw?: string): UiChallengeStatus {
+function normalizeStatus(raw?: string): UiChallengeStatus {
   const u = (raw || "").toLowerCase().replace(/\s+/g, "_");
   if (
     u === "pending" ||
@@ -104,10 +97,10 @@ function normalizeStreamerStatus(raw?: string): UiChallengeStatus {
   return "unknown";
 }
 
-function challengeToRow(c: Challenge): StreamerChallengeRow | null {
+function challengeToRow(c: Challenge): DonorChallengeRow | null {
   const id = String(c._id ?? c.id ?? "");
   if (!id) return null;
-  const donor = c.donor as
+  const st = c.streamer as
     | {
         displayName?: string;
         username?: string;
@@ -115,13 +108,13 @@ function challengeToRow(c: Challenge): StreamerChallengeRow | null {
       }
     | undefined;
   const name = String(
-    donor?.displayName || donor?.username || "DONOR",
+    st?.displayName || st?.username || "STREAMER",
   ).toUpperCase();
   const avatar =
-    typeof donor?.profilePicture === "string" && donor.profilePicture
-      ? donor.profilePicture
+    typeof st?.profilePicture === "string" && st.profilePicture
+      ? st.profilePicture
       : AVATAR_FALLBACK;
-  const status = normalizeStreamerStatus(
+  const status = normalizeStatus(
     typeof c.status === "string" ? c.status : undefined,
   );
   const ts = c.createdAt ? dayjs(c.createdAt).format("YYYY-MM-DD HH:mm") : "—";
@@ -129,7 +122,7 @@ function challengeToRow(c: Challenge): StreamerChallengeRow | null {
   const content = typeof c.content === "string" && c.content ? c.content : "—";
   return {
     id,
-    user: { name, avatar },
+    streamer: { name, avatar },
     amount: amt,
     content,
     status,
@@ -137,56 +130,69 @@ function challengeToRow(c: Challenge): StreamerChallengeRow | null {
   };
 }
 
-function getMutationError(e: unknown): string {
-  if (!e || typeof e !== "object") return "Có lỗi xảy ra.";
-  const x = e as Record<string, unknown>;
-  const data = x.data;
-  if (data && typeof data === "object") {
-    const d = data as Record<string, unknown>;
-    if (typeof d.message === "string" && d.message) return d.message;
-    const err = d.error;
-    if (err && typeof err === "object") {
-      const m = (err as Record<string, unknown>).message;
-      if (typeof m === "string" && m) return m;
-    }
+function badgeClass(s: UiChallengeStatus) {
+  switch (s) {
+    case "pending":
+      return "bg-primary/20 text-primary";
+    case "accepted":
+      return "bg-green-500/20 text-green-500";
+    case "completed":
+      return "bg-blue-500/20 text-blue-500";
+    case "rejected":
+      return "bg-destructive/20 text-destructive";
+    case "failed":
+      return "bg-orange-500/20 text-orange-400";
+    default:
+      return "bg-outline/20 text-outline";
   }
-  return "Có lỗi xảy ra.";
 }
 
-export function StreamerChallengesView() {
+function donorBadgeLabel(s: UiChallengeStatus) {
+  switch (s) {
+    case "pending":
+      return "CHỜ STREAMER DUYỆT";
+    case "accepted":
+      return "STREAMER ĐANG LÀM";
+    case "completed":
+      return "HOÀN THÀNH";
+    case "rejected":
+      return "BỊ TỪ CHỐI";
+    case "failed":
+      return "THẤT BẠI";
+    default:
+      return "KHÁC";
+  }
+}
+
+export function DonorChallengesView() {
   const { isAuthenticated, user } = useAuthSelector();
   const role = user?.role as string | undefined;
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [amountFilter, setAmountFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [amountFilter, setAmountFilter] = useState("all");
   const [sortBy, setSortBy] = useState<"newest" | "highest">("newest");
   const [currentPage, setCurrentPage] = useState(1);
-  const [banner, setBanner] = useState<string | null>(null);
-  const [actingId, setActingId] = useState<string | null>(null);
   const itemsPerPage = 8;
-
-  const skipStreamerList =
-    !isAuthenticated ||
-    (typeof role === "string" && role.length > 0 && !isStreamerRole(role));
 
   const {
     data: chRes,
     isLoading,
     isFetching,
     isError,
-    refetch,
-  } = useGetMyStreamerChallengesQuery(
+  } = useGetMyDonorChallengesQuery(
     { page: 1, limit: FETCH_LIMIT },
-    { skip: skipStreamerList },
+    {
+      skip: !isAuthenticated || isStreamerRole(role),
+    },
   );
 
   const rows = useMemo(() => {
-    const list = parseStreamerChallengesPayload(chRes);
+    const list = parseChallengesPayload(chRes);
     return list
       .map((c) => challengeToRow(c))
-      .filter((r): r is StreamerChallengeRow => Boolean(r));
+      .filter((r): r is DonorChallengeRow => Boolean(r));
   }, [chRes]);
 
-  const filteredChallenges = useMemo(() => {
+  const filtered = useMemo(() => {
     return rows
       .filter((ch) => {
         const matchesStatus =
@@ -214,100 +220,49 @@ export function StreamerChallengesView() {
       });
   }, [rows, statusFilter, amountFilter, sortBy]);
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(filteredChallenges.length / itemsPerPage),
-  );
-  const paginatedChallenges = filteredChallenges.slice(
+  const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
+  const pageRows = filtered.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage,
   );
 
-  const [acceptMut] = useAcceptChallengeMutation();
-  const [rejectMut] = useRejectChallengeMutation();
-  const [completeMut] = useCompleteChallengeMutation();
-  const [failMut] = useFailChallengeMutation();
-
-  const runAction = async (
-    id: string,
-    action: "accept" | "reject" | "complete" | "fail",
-  ) => {
-    setBanner(null);
-    setActingId(id);
-    try {
-      if (action === "accept") await acceptMut(id).unwrap();
-      else if (action === "reject") await rejectMut(id).unwrap();
-      else if (action === "complete") await completeMut(id).unwrap();
-      else await failMut(id).unwrap();
-      void refetch();
-    } catch (e) {
-      setBanner(getMutationError(e));
-    } finally {
-      setActingId(null);
-    }
-  };
-
-  const badgeClass = (s: UiChallengeStatus) => {
-    switch (s) {
-      case "pending":
-        return "bg-primary/20 text-primary";
-      case "accepted":
-        return "bg-green-500/20 text-green-500";
-      case "completed":
-        return "bg-blue-500/20 text-blue-500";
-      case "rejected":
-        return "bg-destructive/20 text-destructive";
-      case "failed":
-        return "bg-orange-500/20 text-orange-400";
-      default:
-        return "bg-outline/20 text-outline";
-    }
-  };
-
-  const badgeLabel = (s: UiChallengeStatus) => {
-    switch (s) {
-      case "pending":
-        return "ĐANG CHỜ";
-      case "accepted":
-        return "ĐÃ CHẤP NHẬN";
-      case "completed":
-        return "HOÀN THÀNH";
-      case "rejected":
-        return "ĐÃ TỪ CHỐI";
-      case "failed":
-        return "THẤT BẠI";
-      default:
-        return "KHÁC";
-    }
-  };
-
   const loadPending = isLoading || isFetching;
+
+  if (isStreamerRole(role)) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center p-8 bg-surface">
+        <p className="text-[11px] font-mono text-outline text-center max-w-md">
+          Tài khoản streamer dùng màn{" "}
+          <span className="text-primary">Quản lý thử thách</span> (API
+          streamer). Vui lòng dùng menu CHALLENGE khi đăng nhập donor.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col bg-surface relative overflow-hidden">
       <div className="scanline" />
-
       <div className="p-8 border-b border-outline-variant/10 bg-surface-container-low/30">
         <div className="max-w-6xl mx-auto w-full flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-1">
-            <h2 className="text-xl md:text-2xl lg:text-3xl font-bold tracking-tight uppercase text-foreground italic flex items-center gap-2 md:gap-3">
-              <Sword className="w-6 h-6 md:w-8 md:h-8 text-primary" />
-              QUẢN LÝ THỬ THÁCH
+            <h2 className="text-3xl font-bold tracking-tight uppercase text-foreground italic flex items-center gap-3">
+              <Sword className="w-8 h-8 text-primary" />
+              THỬ THÁCH CỦA TÔI
             </h2>
             <p className="text-[10px] font-mono text-outline tracking-widest uppercase">
-              Theo dõi và quản lý các thử thách của bạn
+              Quản lý và theo dõi các thử thách
             </p>
             {/* <p className="text-[9px] font-mono text-outline/80 tracking-wide">
-              Tối đa {FETCH_LIMIT} bản ghi gần nhất — lọc/sắp xếp trên trình
-              duyệt.
+              Tối đa {FETCH_LIMIT} bản ghi — lọc trên trình duyệt.
             </p> */}
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
             <Select
               value={statusFilter}
-              onValueChange={(val) => {
-                setStatusFilter(val);
+              onValueChange={(v) => {
+                setStatusFilter(v);
                 setCurrentPage(1);
               }}
             >
@@ -319,7 +274,7 @@ export function StreamerChallengesView() {
                   value="all"
                   className="text-[10px] font-bold uppercase"
                 >
-                  TẤT CẢ TRẠNG THÁI
+                  TẤT CẢ
                 </SelectItem>
                 <SelectItem
                   value="pending"
@@ -331,13 +286,13 @@ export function StreamerChallengesView() {
                   value="approved"
                   className="text-[10px] font-bold uppercase"
                 >
-                  ĐÃ CHẤP NHẬN
+                  ĐANG LÀM
                 </SelectItem>
                 <SelectItem
                   value="rejected"
                   className="text-[10px] font-bold uppercase"
                 >
-                  ĐÃ TỪ CHỐI
+                  TỪ CHỐI
                 </SelectItem>
                 <SelectItem
                   value="completed"
@@ -356,8 +311,8 @@ export function StreamerChallengesView() {
 
             <Select
               value={amountFilter}
-              onValueChange={(val) => {
-                setAmountFilter(val);
+              onValueChange={(v) => {
+                setAmountFilter(v);
                 setCurrentPage(1);
               }}
             >
@@ -369,7 +324,7 @@ export function StreamerChallengesView() {
                   value="all"
                   className="text-[10px] font-bold uppercase"
                 >
-                  TẤT CẢ MỨC TIỀN
+                  TẤT CẢ MỨC
                 </SelectItem>
                 <SelectItem
                   value="under100"
@@ -406,12 +361,12 @@ export function StreamerChallengesView() {
 
             <Select
               value={sortBy}
-              onValueChange={(val) => {
-                setSortBy(val as "newest" | "highest");
+              onValueChange={(v) => {
+                setSortBy(v as "newest" | "highest");
                 setCurrentPage(1);
               }}
             >
-              <SelectTrigger className="w-[160px] bg-surface-container-highest/30 border-outline-variant/20 rounded-none h-10 text-[10px] font-bold uppercase tracking-widest">
+              <SelectTrigger className="w-[140px] bg-surface-container-highest/30 border-outline-variant/20 rounded-none h-10 text-[10px] font-bold uppercase tracking-widest">
                 <SelectValue placeholder="SẮP XẾP" />
               </SelectTrigger>
               <SelectContent className="bg-surface-container-low border-outline-variant/20 rounded-none">
@@ -425,7 +380,7 @@ export function StreamerChallengesView() {
                   value="highest"
                   className="text-[10px] font-bold uppercase"
                 >
-                  TIỀN NHIỀU NHẤT
+                  TIỀN CAO
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -437,20 +392,15 @@ export function StreamerChallengesView() {
         <div className="p-8 max-w-6xl mx-auto w-full">
           {!isAuthenticated && (
             <p className="text-[11px] font-mono text-outline mb-4">
-              Đăng nhập bằng tài khoản streamer để xem và xử lý thử thách.
+              Đăng nhập để xem thử thách bạn đã tạo.
             </p>
           )}
-          {banner && (
-            <p className="text-[11px] font-mono text-red-400 border border-red-400/30 bg-red-400/5 px-3 py-2 mb-4">
-              {banner}
-            </p>
-          )}
-          {isAuthenticated && isError && (
+          {isError && (
             <p className="text-[11px] font-mono text-red-400 mb-4">
-              Không tải được danh sách thử thách.
+              Không tải được danh sách.
             </p>
           )}
-          {isAuthenticated && loadPending && (
+          {loadPending && (
             <p className="text-[10px] font-mono text-primary uppercase tracking-widest mb-4">
               Đang tải…
             </p>
@@ -461,10 +411,10 @@ export function StreamerChallengesView() {
               <TableHeader>
                 <TableRow className="border-outline-variant/10 hover:bg-transparent">
                   <TableHead className="text-[10px] font-bold text-outline uppercase tracking-widest w-[200px]">
-                    Người gửi
+                    Streamer nhận
                   </TableHead>
                   <TableHead className="text-[10px] font-bold text-outline uppercase tracking-widest">
-                    Nội dung thử thách
+                    Nội dung
                   </TableHead>
                   <TableHead className="text-[10px] font-bold text-outline uppercase tracking-widest">
                     Số tiền
@@ -472,135 +422,71 @@ export function StreamerChallengesView() {
                   <TableHead className="text-[10px] font-bold text-outline uppercase tracking-widest">
                     Trạng thái
                   </TableHead>
-                  <TableHead className="text-[10px] font-bold text-outline uppercase tracking-widest text-right">
-                    Thao tác
-                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isAuthenticated &&
-                  paginatedChallenges.map((ch) => (
-                    <TableRow
-                      key={ch.id}
-                      className="border-outline-variant/5 hover:bg-surface-container-highest/10 group"
-                    >
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="w-8 h-8 border border-outline-variant/20">
-                            <AvatarImage
-                              src={ch.user.avatar}
-                              referrerPolicy="no-referrer"
-                            />
-                            <AvatarFallback>
-                              {ch.user.name[0] ?? "?"}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="space-y-0.5">
-                            <p className="text-[11px] font-bold text-foreground uppercase tracking-wider">
-                              {ch.user.name}
-                            </p>
-                            <p className="text-[8px] font-mono text-outline uppercase flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              {ch.timestamp}
-                            </p>
-                          </div>
+                {pageRows.map((ch) => (
+                  <TableRow
+                    key={ch.id}
+                    className="border-outline-variant/5 hover:bg-surface-container-highest/10"
+                  >
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Avatar className="w-8 h-8 border border-outline-variant/20">
+                          <AvatarImage
+                            src={ch.streamer.avatar}
+                            referrerPolicy="no-referrer"
+                          />
+                          <AvatarFallback>
+                            {ch.streamer.name[0] ?? "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="space-y-0.5">
+                          <p className="text-[11px] font-bold text-foreground uppercase tracking-wider">
+                            {ch.streamer.name}
+                          </p>
+                          <p className="text-[8px] font-mono text-outline uppercase flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {ch.timestamp}
+                          </p>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <p className="text-[11px] text-foreground/90 font-medium italic">
-                          &quot;{ch.content}&quot;
-                        </p>
-                        <p className="text-[8px] font-mono text-outline mt-1 uppercase tracking-widest">
-                          ID: {ch.id}
-                        </p>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm font-bold text-primary tracking-tight">
-                          {ch.amount.toLocaleString("vi-VN")} VND
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          className={`rounded-none text-[8px] font-bold tracking-widest uppercase border-none ${badgeClass(ch.status)}`}
-                        >
-                          {badgeLabel(ch.status)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {ch.status === "pending" ? (
-                          <div className="flex justify-end gap-2 flex-wrap">
-                            <Button
-                              type="button"
-                              size="sm"
-                              disabled={actingId === ch.id}
-                              onClick={() => void runAction(ch.id, "accept")}
-                              className="h-7 px-3 bg-green-500/10 border border-green-500/30 text-green-500 hover:bg-green-500 hover:text-black text-[9px] font-bold tracking-widest uppercase rounded-none transition-all"
-                            >
-                              <CheckCircle2 className="w-3 h-3 mr-1" />
-                              DUYỆT
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              disabled={actingId === ch.id}
-                              onClick={() => void runAction(ch.id, "reject")}
-                              className="h-7 px-3 bg-destructive/10 border border-destructive/30 text-destructive hover:bg-destructive hover:text-white text-[9px] font-bold tracking-widest uppercase rounded-none transition-all"
-                            >
-                              <XCircle className="w-3 h-3 mr-1" />
-                              BỎ
-                            </Button>
-                          </div>
-                        ) : ch.status === "accepted" ? (
-                          <div className="flex justify-end gap-2 flex-wrap">
-                            <Button
-                              type="button"
-                              size="sm"
-                              disabled={actingId === ch.id}
-                              onClick={() => void runAction(ch.id, "complete")}
-                              className="h-7 px-3 bg-blue-500/10 border border-blue-500/30 text-blue-500 hover:bg-blue-500 hover:text-white text-[9px] font-bold tracking-widest uppercase rounded-none transition-all"
-                            >
-                              <CheckCircle2 className="w-3 h-3 mr-1" />
-                              HOÀN THÀNH
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              disabled={actingId === ch.id}
-                              onClick={() => void runAction(ch.id, "fail")}
-                              className="h-7 px-3 bg-orange-500/10 border border-orange-500/30 text-orange-400 hover:bg-orange-500 hover:text-black text-[9px] font-bold tracking-widest uppercase rounded-none transition-all"
-                            >
-                              <XCircle className="w-3 h-3 mr-1" />
-                              THẤT BẠI
-                            </Button>
-                          </div>
-                        ) : ch.status === "unknown" ? (
-                          <span className="text-[9px] font-bold text-outline uppercase tracking-widest italic">
-                            TRẠNG THÁI CHƯA NHẬN DIỆN
-                          </span>
-                        ) : (
-                          <span className="text-[9px] font-bold text-outline uppercase tracking-widest italic">
-                            ĐÃ XỬ LÝ
-                          </span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <p className="text-[11px] text-foreground/90 font-medium italic">
+                        &quot;{ch.content}&quot;
+                      </p>
+                      <p className="text-[8px] font-mono text-outline mt-1 uppercase tracking-widest">
+                        ID: {ch.id}
+                      </p>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm font-bold text-primary">
+                        {ch.amount.toLocaleString("vi-VN")} VND
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        className={`rounded-none text-[8px] font-bold tracking-widest uppercase border-none ${badgeClass(ch.status)}`}
+                      >
+                        {donorBadgeLabel(ch.status)}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
 
-            {isAuthenticated &&
-              !loadPending &&
-              filteredChallenges.length === 0 && (
-                <div className="py-20 text-center space-y-4">
-                  <Sword className="w-12 h-12 text-outline/20 mx-auto" />
-                  <p className="text-outline font-mono text-[10px] uppercase tracking-[0.3em]">
-                    KHÔNG TÌM THẤY THỬ THÁCH NÀO
-                  </p>
-                </div>
-              )}
+            {!loadPending && filtered.length === 0 && (
+              <div className="py-16 text-center">
+                <p className="text-outline font-mono text-[10px] uppercase tracking-widest">
+                  Chưa có thử thách nào.
+                </p>
+              </div>
+            )}
           </div>
 
-          {isAuthenticated && totalPages > 1 && (
+          {totalPages > 1 && (
             <div className="flex justify-center pb-8">
               <Pagination>
                 <PaginationContent>
